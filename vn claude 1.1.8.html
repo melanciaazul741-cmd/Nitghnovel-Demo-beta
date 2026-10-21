@@ -1,0 +1,3067 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Visual Novel - Importação de Assets via ZIP</title>
+    <!-- Importação da biblioteca JSZip -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            background-color: #05050a;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            max-width: 480px;
+            max-height: 100vh;
+            background: #0c091f;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+        }
+
+        .screen-layer {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #main-menu {
+            background: linear-gradient(135deg, #1f1a3a 0%, #0c091f 50%, #040208 100%);
+            z-index: 99999;
+            padding: 20px;
+        }
+
+        .game-version-badge {
+            position: absolute;
+            top: 15px;
+            left: 20px;
+            font-size: 12px;
+            color: #00f0ff;
+            font-weight: bold;
+            letter-spacing: 1px;
+            opacity: 0.8;
+        }
+
+        .game-main-title {
+            font-size: 32px;
+            color: #ff2a85;
+            font-weight: bold;
+            margin-bottom: 8px;
+            text-shadow: 0 0 15px rgba(255, 42, 133, 0.5);
+            letter-spacing: 2px;
+            text-align: center;
+        }
+
+        .game-subtitle {
+            font-size: 14px;
+            color: #00f0ff;
+            margin-bottom: 40px;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+        }
+
+        .menu-main-btn {
+            width: 80%;
+            max-width: 260px;
+            background: rgba(20, 20, 35, 0.95);
+            border: 2px solid #00f0ff;
+            color: #fff;
+            padding: 14px;
+            margin: 8px 0;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            text-align: center;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0, 240, 255, 0.3);
+            position: relative;
+            z-index: 100000;
+        }
+
+        .menu-main-btn:active {
+            background: #00f0ff;
+            color: #000;
+            transform: scale(0.97);
+        }
+
+        #background-layer {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 1;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            background-size: cover;
+            background-position: center;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        .scene-placeholder {
+            font-size: 15px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.9);
+            padding: 8px 16px;
+            border-radius: 20px;
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            z-index: 2;
+            text-align: center;
+        }
+
+        .bg-01a-wrap { background: linear-gradient(135deg, #322346 0%, #1a1329 100%); color: #d8b4fe; }
+        .bg-01b-wrap { background: linear-gradient(135deg, #100d1c 0%, #05040a 100%); color: #a78bfa; }
+        .bg-02a-wrap { background: linear-gradient(135deg, #1a442d 0%, #0c2117 100%); color: #86efac; }
+        .bg-02b-wrap { background: linear-gradient(135deg, #0b1f15 0%, #040a08 100%); color: #4ade80; }
+        .bg-03a-wrap { background: linear-gradient(135deg, #442a15 0%, #21130a 100%); color: #fdba74; }
+        .bg-03b-wrap { background: linear-gradient(135deg, #1f1208 0%, #0a0502 100%); color: #fb923c; }
+
+        /* Template de Chamada de Celular (Estilo exato da referência visual) */
+        #phone-call-layer {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.45);
+            z-index: 25;
+            display: none; /* Corrigido: inicia oculto para não bloquear os menus */
+            justify-content: center;
+            align-items: center;
+            padding: 15px 10px;
+        }
+
+        .phone-mockup-body {
+            width: 100%;
+            max-width: 320px;
+            height: 94%;
+            max-height: 620px;
+            background: linear-gradient(180deg, #6c5ce7 0%, #4834d4 40%, #130f40 100%);
+            border: 6px solid #2d2b55;
+            border-radius: 36px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px 24px 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .phone-top-bar {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.85);
+            font-weight: 500;
+        }
+
+        .phone-caller-info {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 15px;
+        }
+
+        .phone-avatar-container {
+            width: 92px;
+            height: 92px;
+            border: 3px solid rgba(255,255,255,0.4);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #111;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+
+        .phone-avatar-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .phone-caller-name {
+            font-size: 26px;
+            font-weight: 700;
+            margin-top: 10px;
+            letter-spacing: 0.5px;
+            color: #fff;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .phone-call-status {
+            font-size: 12px;
+            color: rgba(255,255,255,0.75);
+            margin-top: 2px;
+            letter-spacing: 0.5px;
+        }
+
+        .phone-grid-actions {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px 24px;
+            width: 100%;
+            max-width: 250px;
+            margin: 10px 0;
+            justify-items: center;
+        }
+
+        .phone-grid-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+        }
+
+        .phone-grid-btn {
+            width: 46px;
+            height: 46px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.18);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 18px;
+            color: #fff;
+            transition: background 0.2s;
+        }
+
+        .phone-grid-btn:active {
+            background: rgba(255, 255, 255, 0.35);
+        }
+
+        .phone-grid-label {
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .phone-bottom-actions {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 15px;
+            margin-top: auto;
+        }
+
+        .phone-btn-side {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.18);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 18px;
+            color: #fff;
+            cursor: pointer;
+        }
+
+        .phone-btn-decline {
+            width: 58px;
+            height: 58px;
+            border-radius: 50%;
+            background: #ea4335;
+            color: #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(234, 67, 53, 0.5);
+        }
+
+        /* Template de Mensagens / Chat */
+        #phone-msg-layer {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: #f0f2f5;
+            color: #333;
+            z-index: 25;
+            display: none;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .msg-top-bar {
+            background: #fff;
+            padding: 15px 20px;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: bold;
+            font-size: 15px;
+            color: #111;
+        }
+        .msg-body {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .msg-bubble {
+            max-width: 75%;
+            padding: 10px 14px;
+            border-radius: 16px;
+            font-size: 14px;
+            line-height: 1.4;
+            word-break: break-word;
+        }
+        .msg-incoming {
+            background: #e4e6eb;
+            color: #050505;
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+        }
+        .msg-outgoing {
+            background: #0084ff;
+            color: #fff;
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+        .msg-footer {
+            background: #fff;
+            padding: 12px 15px;
+            border-top: 1px solid #ddd;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .msg-input-box {
+            flex: 1;
+            background: #f0f2f5;
+            border: none;
+            padding: 10px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            color: #333;
+        }
+        .msg-send-btn {
+            background: #0084ff;
+            color: #fff;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 15px;
+            font-weight: bold;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        #cg-layer {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 5;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            opacity: 0;
+            transition: opacity 0.6s ease-in-out;
+        }
+
+        .cg-placeholder {
+            width: 100%; height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            text-align: center;
+            padding: 20px 20px 170px 20px;
+            border: 3px dashed rgba(255,255,255,0.35);
+        }
+        .cg-placeholder .cg-tag { font-size: 40px; font-weight: bold; letter-spacing: 4px; text-shadow: 0 2px 12px rgba(0,0,0,0.8); }
+        .cg-placeholder .cg-name { font-size: 15px; font-weight: bold; letter-spacing: 1px; background: rgba(0,0,0,0.55); padding: 6px 14px; border-radius: 20px; }
+        .cg-placeholder .cg-hint { font-size: 11px; opacity: 0.75; }
+        .cg-wrap-1 { background: linear-gradient(160deg, #5b2a6b 0%, #1a0f33 60%, #0a0618 100%); color: #f5d0fe; }
+        .cg-wrap-2 { background: linear-gradient(160deg, #22406b 0%, #0f1a33 60%, #060a18 100%); color: #bfdbfe; }
+        .cg-wrap-3 { background: linear-gradient(160deg, #6b4a1f 0%, #33200f 60%, #180e06 100%); color: #fed7aa; }
+        .cg-wrap-4 { background: linear-gradient(160deg, #1f6b52 0%, #0f3326 60%, #06180f 100%); color: #bbf7d0; }
+
+        #day-badge {
+            position: absolute;
+            top: 15px; left: 15px;
+            z-index: 30;
+            display: none;
+            background: rgba(15, 15, 25, 0.85);
+            border: 1px solid #ff2a85;
+            color: #ff2a85;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            pointer-events: none;
+        }
+
+        #day-card {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 40;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 14px;
+            background: radial-gradient(circle at 50% 45%, #1f1a3a 0%, #05050a 75%);
+            opacity: 0;
+            transition: opacity 0.4s ease;
+            cursor: pointer;
+        }
+        .day-card-num { font-size: 44px; font-weight: bold; color: #ff2a85; letter-spacing: 8px; text-shadow: 0 0 20px rgba(255,42,133,0.6); }
+        .day-card-line { width: 90px; height: 2px; background: #00f0ff; box-shadow: 0 0 10px #00f0ff; }
+        .day-card-title { font-size: 15px; color: #00f0ff; letter-spacing: 3px; text-transform: uppercase; text-align: center; padding: 0 20px; }
+
+        .slot-thumb {
+            width: 72px;
+            height: auto;
+            max-height: 110px;
+            object-fit: cover;
+            border-radius: 4px;
+            border: 1px solid #4a4a6a;
+            background: #111;
+            flex-shrink: 0;
+        }
+        .slot-thumb-empty {
+            width: 72px; height: 72px;
+            border-radius: 4px;
+            border: 1px dashed #4a4a6a;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 10px; color: #777; flex-shrink: 0; text-align: center;
+        }
+
+        #top-menu {
+            position: absolute;
+            top: 15px; right: 15px;
+            z-index: 30;
+            display: none;
+            gap: 10px;
+        }
+
+        .menu-btn {
+            background: rgba(15, 15, 25, 0.85);
+            border: 1px solid #00f0ff;
+            color: #00f0ff;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            position: relative;
+            z-index: 31;
+        }
+
+        .menu-btn:active {
+            background: #00f0ff;
+            color: #000;
+        }
+
+        #character-sprite {
+            position: absolute;
+            bottom: 155px;
+            left: 50%;
+            transform: translateX(-50%);
+            height: auto;
+            max-height: 48vh;
+            width: auto;
+            z-index: 3;
+            pointer-events: none;
+            display: none;
+            justify-content: center;
+            align-items: flex-end;
+        }
+
+        .single-sprite-img {
+            max-height: 48vh;
+            max-width: 80vw;
+            object-fit: contain;
+            pointer-events: auto;
+        }
+
+        .elize-placeholder {
+            width: 140px;
+            height: 260px;
+            background: #8a2be2;
+            border: 3px dashed #ff2a85;
+            border-radius: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+            font-weight: bold;
+            font-size: 14px;
+            box-shadow: 0 0 15px rgba(138, 43, 226, 0.6);
+            text-align: center;
+        }
+
+        /* Modo telefone: o slot do sprite é usado para exibir o PNG do telefone */
+        #character-sprite.phone-mode {
+            max-height: 62vh;
+        }
+
+        #character-sprite.phone-mode .single-sprite-img {
+            max-height: 62vh;
+            max-width: 86vw;
+        }
+
+        .phone-placeholder {
+            width: 200px;
+            height: 380px;
+            background: linear-gradient(180deg, #6c5ce7 0%, #4834d4 45%, #130f40 100%);
+            border: 3px dashed #00f0ff;
+            border-radius: 28px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            color: #fff;
+            font-weight: bold;
+            font-size: 14px;
+            text-align: center;
+            box-shadow: 0 0 15px rgba(0, 240, 255, 0.5);
+        }
+
+        .phone-placeholder .ph-icon { font-size: 44px; }
+        .phone-placeholder .ph-caller { font-size: 20px; color: #00f0ff; }
+        .phone-placeholder .ph-hint { font-size: 11px; font-weight: normal; opacity: 0.8; }
+
+        #dialogue-box {
+            position: relative;
+            width: 94%;
+            height: 145px;
+            margin: 0 auto 15px auto;
+            background: rgba(15, 15, 25, 0.92);
+            border: 2px solid #ff2a85;
+            border-radius: 12px;
+            padding: 10px 16px 14px 16px;
+            z-index: 10;
+            box-shadow: 0 4px 20px rgba(255, 42, 133, 0.35);
+            cursor: pointer;
+            display: none;
+        }
+
+        #dialogue-controls {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-bottom: 4px;
+            border-bottom: 1px solid rgba(255, 42, 133, 0.3);
+            padding-bottom: 4px;
+        }
+
+        .dlg-control-btn {
+            background: transparent;
+            border: 1px solid #00f0ff;
+            color: #00f0ff;
+            font-size: 10px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            position: relative;
+            z-index: 11;
+        }
+
+        .dlg-control-btn.active {
+            background: #00f0ff;
+            color: #000;
+        }
+
+        #speaker-name {
+            font-size: 14px;
+            font-weight: bold;
+            color: #ff2a85;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        #dialogue-text {
+            font-size: 14px;
+            line-height: 1.35;
+            color: #f0f0f0;
+            height: 55px;
+            overflow: hidden;
+        }
+
+        #choices-container {
+            position: absolute;
+            top: 38%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 86%;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            z-index: 20;
+            display: none;
+        }
+
+        .choice-btn {
+            background: rgba(20, 20, 35, 0.96);
+            border: 2px solid #00f0ff;
+            color: #fff;
+            padding: 14px 18px;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: bold;
+            text-align: center;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0, 240, 255, 0.25);
+            position: relative;
+            z-index: 21;
+        }
+
+        .choice-btn:active {
+            background: #00f0ff;
+            color: #000;
+            transform: scale(0.97);
+        }
+
+        .tap-indicator {
+            position: absolute;
+            bottom: 6px; right: 15px;
+            font-size: 10px;
+            color: #00f0ff;
+            animation: blink 1.2s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+        }
+
+        #setup-modal {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(8, 8, 16, 0.96);
+            z-index: 200000;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .setup-box {
+            background: #151525;
+            border: 2px solid #00f0ff;
+            border-radius: 12px;
+            padding: 25px;
+            width: 100%;
+            max-width: 340px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .setup-box h2 {
+            color: #ff2a85;
+            font-size: 18px;
+            text-align: center;
+            margin-bottom: 5px;
+        }
+
+        .setup-box label {
+            font-size: 13px;
+            color: #00f0ff;
+            font-weight: bold;
+        }
+
+        .setup-box input, .setup-box select {
+            width: 100%;
+            padding: 10px;
+            background: #0c091f;
+            border: 1px solid #4a4a6a;
+            color: #fff;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .setup-box button {
+            margin-top: 10px;
+            background: #00f0ff;
+            color: #000;
+            border: none;
+            padding: 12px;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 15px;
+        }
+
+        .modal-screen {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: #05050a;
+            z-index: 200000;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            justify-content: flex-start;
+            padding: 25px 20px;
+            overflow-y: auto;
+        }
+
+        .modal-screen h2 {
+            color: #fff;
+            margin-bottom: 20px;
+            font-size: 20px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .dev-accordion-item {
+            width: 100%;
+            margin-bottom: 15px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .dev-accordion-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .pencil-btn {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .dev-sub-list {
+            display: none;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 8px;
+            padding-left: 15px;
+            font-size: 15px;
+            font-weight: normal;
+        }
+
+        .dev-sub-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(25, 25, 40, 0.6);
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: 1px solid #33334d;
+        }
+
+        .dev-action-btn {
+            background: #00f0ff;
+            color: #000;
+            border: none;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .sprite-thumb-preview {
+            width: 32px;
+            height: 32px;
+            border-radius: 4px;
+            object-fit: cover;
+            border: 1px solid #00f0ff;
+            background: #111;
+            cursor: pointer;
+        }
+
+        .dev-action-btns {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .dev-mini-btn {
+            background: #00f0ff;
+            color: #000;
+            border: none;
+            width: 22px; height: 22px;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 13px;
+        }
+
+        .dev-mini-btn.delete {
+            background: #e74c3c;
+            color: #fff;
+        }
+
+        .dev-bottom-actions {
+            margin-top: 25px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 100%;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .dev-bottom-link {
+            color: #fff;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .dev-bottom-link:active {
+            color: #00f0ff;
+        }
+
+        .close-modal-btn {
+            margin-top: 20px;
+            align-self: center;
+            background: #2a2a40;
+            color: #fff;
+            border: 1px solid #6a6a8a;
+            padding: 8px 25px;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .save-slots-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            width: 100%;
+            max-width: 440px;
+        }
+
+        .save-slot-card {
+            background: rgba(25, 25, 40, 0.85);
+            border: 2px solid #4a4a6a;
+            border-radius: 8px;
+            padding: 10px 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            position: relative;
+            z-index: 200001;
+        }
+
+        .slot-header { display: flex; justify-content: space-between; gap: 12px; font-size: 11px; color: #00f0ff; margin-bottom: 4px; }
+        .slot-title { font-size: 14px; font-weight: bold; color: #ff2a85; }
+        .slot-subtitle { font-size: 12px; color: #ccc; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 300px; }
+
+        .new-slot-btn {
+            margin-top: 16px;
+            padding: 12px 18px;
+            border: 2px dashed #00f0ff;
+            border-radius: 8px;
+            color: #00f0ff;
+            font-weight: bold;
+            cursor: pointer;
+            text-align: center;
+        }
+
+        #popup-root {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 300000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .popup-box {
+            background: #151525;
+            border: 2px solid #00f0ff;
+            border-radius: 10px;
+            padding: 20px;
+            min-width: 240px;
+            text-align: center;
+        }
+
+        .popup-buttons { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+        .popup-btn { padding: 10px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; background: #00f0ff; color: #000; }
+        .popup-btn.delete { background: #e74c3c; color: #fff; }
+        .popup-btn.cancel { background: #2a2a40; color: #fff; }
+
+        #toast {
+            position: absolute;
+            top: 60px; left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 240, 255, 0.9);
+            color: #000;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            z-index: 400000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            max-width: 90%;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="day-card">
+            <div class="day-card-num" id="day-card-num">DIA 1</div>
+            <div class="day-card-line"></div>
+            <div class="day-card-title" id="day-card-title"></div>
+        </div>
+        <audio id="bg-audio" loop style="display: none;"></audio>
+        <audio id="sfx-audio" style="display: none;"></audio>
+
+        <!-- Menu Principal -->
+        <div class="screen-layer" id="main-menu">
+            <div class="game-version-badge">v1.1.8</div>
+            <div class="game-main-title">VISUAL NOVEL</div>
+            <div class="game-subtitle">Dia a Dia</div>
+            <button class="menu-main-btn" id="btn-play">Jogar</button>
+            <button class="menu-main-btn" id="btn-load">Carregar Save</button>
+            <button class="menu-main-btn" id="btn-config">Configurações</button>
+        </div>
+
+        <!-- Ecrã de Identificação -->
+        <div id="setup-modal">
+            <div class="setup-box">
+                <h2>Identificação</h2>
+                <div>
+                    <label>Seu Nome:</label>
+                    <input type="text" id="input-player-name" value="Protagonista" />
+                </div>
+                <div>
+                    <label>Pronomes:</label>
+                    <select id="select-player-pronoun">
+                        <option value="ele">Ele / Dele</option>
+                        <option value="ela">Ela / Dela</option>
+                        <option value="elu">Elu / Delu</option>
+                    </select>
+                </div>
+                <button id="btn-start-game">Confirmar e Iniciar</button>
+            </div>
+        </div>
+
+        <!-- Elementos do Jogo e Cenários -->
+        <div id="background-layer" class="bg-01a-wrap">
+            <div id="scene-bg-element" class="scene-placeholder">CENÁRIO: QUARTO DO PROTA (DIA)</div>
+        </div>
+
+        <div id="cg-layer"></div>
+
+        <!-- Template de Tela de Chamada de Celular (Estilo Reference Mockup) -->
+        <div id="phone-call-layer">
+            <div class="phone-mockup-body">
+                <div class="phone-top-bar">
+                    <span id="phone-time-label">12:35 PM</span>
+                    <span>📶 97% 🔋</span>
+                </div>
+                <div class="phone-caller-info">
+                    <div class="phone-avatar-container" id="phone-caller-avatar">👤</div>
+                    <div class="phone-caller-name" id="phone-caller-title">Elize</div>
+                    <div class="phone-call-status" id="phone-call-status">A chamar...</div>
+                </div>
+                <div class="phone-grid-actions">
+                    <div class="phone-grid-item">
+                        <div class="phone-grid-btn">👤</div>
+                        <span class="phone-grid-label">Contact</span>
+                    </div>
+                    <div class="phone-grid-item">
+                        <div class="phone-grid-btn">➕</div>
+                        <span class="phone-grid-label">Add Call</span>
+                    </div>
+                    <div class="phone-grid-item">
+                        <div class="phone-grid-btn">🎤</div>
+                        <span class="phone-grid-label">Mute</span>
+                    </div>
+                    <div class="phone-grid-item">
+                        <div class="phone-grid-btn">⏸️</div>
+                        <span class="phone-grid-label">Hold</span>
+                    </div>
+                    <div class="phone-grid-item">
+                        <div class="phone-grid-btn">📹</div>
+                        <span class="phone-grid-label">Video Call</span>
+                    </div>
+                    <div class="phone-grid-item">
+                        <div class="phone-grid-btn">⏺️</div>
+                        <span class="phone-grid-label">Record</span>
+                    </div>
+                </div>
+                <div class="phone-bottom-actions">
+                    <div class="phone-btn-side">🔊</div>
+                    <div class="phone-btn-decline" onclick="dismissPhoneCall()">📞</div>
+                    <div class="phone-btn-side">⌨️</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Template de Mensagens de Texto / Chat -->
+        <div id="phone-msg-layer">
+            <div class="msg-top-bar">
+                <span style="color: #0084ff; cursor:pointer;" onclick="closeMsgApp()">‹ Voltar</span>
+                <span id="msg-contact-title">Elize</span>
+                <span style="font-size: 12px; color: #888;">Online</span>
+            </div>
+            <div class="msg-body" id="msg-chat-container">
+                <div class="msg-bubble msg-incoming">Bom dia, dorminhoco! Vem para o parque comigo hoje?</div>
+                <div class="msg-bubble msg-outgoing">Tá bom, me dá uns minutos para me arrumar.</div>
+            </div>
+            <div class="msg-footer">
+                <input type="text" class="msg-input-box" placeholder="Escrever mensagem..." disabled />
+                <button class="msg-send-btn">Enviar</button>
+            </div>
+        </div>
+
+        <div id="day-badge">Dia 1</div>
+
+        <div id="top-menu">
+            <button class="menu-btn" id="top-save-btn">Guardar</button>
+            <button class="menu-btn" id="top-options-btn">Opções</button>
+        </div>
+        <div id="character-sprite"></div>
+        <div id="choices-container"></div>
+        <div id="dialogue-box">
+            <div id="dialogue-controls">
+                <button class="dlg-control-btn" id="skip-btn">⏭ Pular</button>
+                <button class="dlg-control-btn" id="auto-btn">▶ Auto</button>
+            </div>
+            <div id="speaker-name">Narrador</div>
+            <div id="dialogue-text">Texto do diálogo...</div>
+            <div class="tap-indicator" id="tap-indicator">▼ Toque para avançar</div>
+        </div>
+    </div>
+
+    <div id="toast">Ação concluída!</div>
+
+    <script>
+        let devAssets = {
+            characters: [
+                { name: "Alex", sprites: [] },
+                { name: "Elize", sprites: [] }
+            ],
+            scenes: [
+                { id: "01a", name: "Quarto do Prota (Dia)", image: null },
+                { id: "01b", name: "Quarto do Prota (Noite)", image: null },
+                { id: "02a", name: "Parque (Dia)", image: null },
+                { id: "02b", name: "Parque (Noite)", image: null },
+                { id: "03a", name: "Parque de Skate (Dia)", image: null },
+                { id: "03b", name: "Parque de Skate (Noite)", image: null }
+            ],
+            cgs: [
+                { id: "cg1", name: "CG 1 - Final 1: Sob as estrelas (Elize)", image: null },
+                { id: "cg2", name: "CG 2 - Final 2: Silêncio confortável (Elize)", image: null },
+                { id: "cg3", name: "CG 3 - Final 3: Noite de manobras (Alex)", image: null },
+                { id: "cg4", name: "CG 4 - Final 4: Conversa sob o luar (Alex)", image: null }
+            ],
+            ui: [
+                { id: "phone", name: "Telefone (chamada) - PNG", image: null }
+            ],
+            music: [
+                { id: "menu", name: "1 - Menu", url: null },
+                { id: "gameplay", name: "2 - Gameplay", url: null },
+                { id: "alex", name: "3 - Skate Park Theme", url: null },
+                { id: "elize", name: "4 - Park Theme", url: null }
+            ],
+            sfx: [
+                { id: "click", name: "1 - Clique / UI", url: null },
+                { id: "message", name: "2 - Mensagem / Alerta", url: null },
+                { id: "door", name: "3 - Porta / Transição", url: null }
+            ]
+        };
+
+        let playerData = {
+            name: "Protagonista",
+            pronoun: "ele"
+        };
+
+        let gameSettings = {
+            portraitModeActive: true,
+            musicVolume: 0.8,
+            sfxVolume: 0.8
+        };
+
+        let lastActiveSpeaker = null;
+
+        const script = [
+            // ================= PRÓLOGO — Quarto (dia) =================
+            { day: 1, dayTitle: "Uma manhã preguiçosa", scene: "01a", speaker: "Narrador", text: "Está um dia monótono. Os raios de sol atravessam a janela do seu quarto e você continua deitado na cama, sem a menor vontade de levantar. Mas o celular está tocando intensamente." },
+            { scene: "01a", speaker: "Pensamento", text: "Que cansaço... Queria apenas continuar deitado." },
+            { scene: "01a", speaker: "Narrador", text: "Entre uma vibração e outra, você olha de relance a tela: uma chamada de Elize e, logo abaixo, uma mensagem não lida de Alex." },
+            { scene: "01a", speaker: "Pensamento", text: "Os dois ao mesmo tempo? Hoje o dia não vai ser tão parado quanto eu queria, {nome}..." },
+            { scene: "01a", speaker: "Escolha", text: "Como deseja proceder?", choices: [
+                { text: "1- Atender", next: 100 },
+                { text: "2- Desligar", next: 200 }
+            ]},
+
+            // ================= ROTA 1 — ELIZE (parque) =================
+            { id: 100, scene: "01a", speaker: "Narrador", text: "Você respira fundo e atende a ligação." },
+            { id: 100, scene: "01a", speaker: "Elize", phone: "Elize", text: "Bom dia, dorminhoco! Eu sei que ainda está na cama, nem precisa negar. Vem para o parque comigo? O dia está lindo demais para ficar trancado." },
+            { id: 100, scene: "01a", speaker: "Protagonista", phone: "Elize", text: "Tá bom, tá bom... Me dá uns minutinhos para me arrumar." },
+            { id: 100, scene: "01a", speaker: "Elize", phone: "Elize", text: "Combinado! Não demora, hein? Vou estar no banco de sempre." },
+            { id: 100, scene: "02a", speaker: "Narrador", text: "Você chega ao parque de dia. Sob a sombra das árvores, avista Elize sentada em um banco, balançando os pés." },
+            { id: 100, scene: "02a", speaker: "Elize", pose: 0, text: "Ah, você chegou. Estava te esperando." },
+            { id: 100, scene: "02a", speaker: "Protagonista", text: "Desculpa a demora. A cama não queria me soltar." },
+            { id: 100, scene: "02a", speaker: "Elize", pose: 3, text: "Haha, eu imaginei! Por isso trouxe um motivo extra para você sair de casa." },
+            { id: 100, scene: "02a", speaker: "Elize", pose: 5, text: "O parque está tão agradável com esta luz solar! Vem, vamos dar uma volta antes que o sol vá embora." },
+            { id: 100, scene: "02a", speaker: "Narrador", text: "Vocês caminham pelas trilhas, dividem um sorvete e riem de histórias bobas. O tempo parece passar mais devagar ao lado dela." },
+            { id: 100, scene: "02a", speaker: "Elize", pose: 2, text: "Sabe... eu andei pensando em umas coisas ultimamente. Coisas sobre a gente." },
+            { id: 100, scene: "02a", speaker: "Protagonista", text: "Coisas tipo o quê?" },
+            { id: 100, scene: "02a", speaker: "Elize", pose: 4, text: "N-nada! Esquece, eu falo depois. Anda logo, o sorvete vai derreter!" },
+            { id: 100, scene: "02b", speaker: "Narrador", text: "Quando percebem, o sol já se foi. O parque se transforma com o cair da noite, iluminado por postes baixos e pelo brilho distante da cidade." },
+            { id: 100, scene: "02b", speaker: "Elize", pose: 1, text: "Olha só como o céu estrelado ficou bonito por aqui à noite!" },
+            { id: 100, scene: "02b", speaker: "Protagonista", text: "Eu nunca tinha reparado que dava para ver tantas estrelas daqui." },
+            { id: 100, scene: "02b", speaker: "Elize", pose: 2, text: "Eu queria te falar uma coisa desde manhã. Mas fiquei com vergonha..." },
+            { id: 100, scene: "02b", speaker: "Escolha", text: "O que você faz?", choices: [
+                { text: "Dizer o que sente", next: 110 },
+                { text: "Ficar em silêncio e aproveitar", next: 120 }
+            ]},
+
+            // Final 1 — Elize (CG 1)
+            { id: 110, scene: "02b", speaker: "Protagonista", text: "Elize... eu gosto muito de estar com você. Mais do que só como amizade." },
+            { id: 110, scene: "02b", speaker: "Elize", pose: 2, text: "Eu... estava tentando dizer exatamente isso há horas." },
+            { id: 110, scene: "02b", speaker: "Elize", pose: 3, text: "Então acho que as estrelas escolheram bem o dia, né?" },
+            { id: 110, day: 2, dayTitle: "No dia seguinte", scene: "01a", speaker: "Narrador", text: "O sol entra pela janela e, pela primeira vez em muito tempo, você levanta da cama sem nenhum esforço. O celular vibra: é Elize." },
+            { id: 110, scene: "01a", speaker: "Narrador", text: "\"Bom dia! Ainda estou sorrindo por causa de ontem. O céu vai estar limpo hoje à noite... que tal rever as estrelas?\"" },
+            { id: 110, scene: "01a", speaker: "Protagonista", text: "Claro. Já estou indo, {nome} chega até antes do horário dessa vez." },
+            { id: 110, scene: "02b", cg: 1, speaker: "Narrador", text: "E assim, sob o mesmo céu estrelado, vocês começam uma nova história, de mãos dadas." },
+            { id: 110, scene: "02b", cg: 1, speaker: "Fim da Rota", isEnd: true, text: "FIM 1: Sob as estrelas — Elize. CG desbloqueado. Retornando ao Menu..." },
+
+            // Final 2 — Elize (CG 2)
+            { id: 120, scene: "02b", speaker: "Pensamento", text: "Não precisa dizer nada. Esse momento já fala por si só." },
+            { id: 120, scene: "02b", speaker: "Elize", pose: 3, text: "Sabe de uma coisa? É bom ficar assim com você. Sem pressa, sem precisar explicar nada." },
+            { id: 120, scene: "02b", speaker: "Protagonista", text: "Também acho. Vamos ficar mais um pouco?" },
+            { id: 120, day: 2, dayTitle: "No dia seguinte", scene: "01a", speaker: "Narrador", text: "Você acorda com a sensação de que algo mudou, mesmo sem que ninguém tenha dito nada. O celular vibra: é Elize." },
+            { id: 120, scene: "01a", speaker: "Narrador", text: "\"Obrigada por ontem. Foi o melhor silêncio da minha vida. Mesmo horário, mesmo banco?\"" },
+            { id: 120, scene: "01a", speaker: "Protagonista", text: "Mesmo horário, mesmo banco." },
+            { id: 120, scene: "02b", cg: 2, speaker: "Narrador", text: "E assim, o banco do parque se torna o lugar de vocês: sem pressa, sem precisar dizer tudo, só estando juntos." },
+            { id: 120, scene: "02b", cg: 2, speaker: "Fim da Rota", isEnd: true, text: "FIM 2: Silêncio confortável — Elize. CG desbloqueado. Retornando ao Menu..." },
+
+            // ================= ROTA 2 — ALEX (pista de skate → parque) =================
+            { id: 200, scene: "01a", speaker: "Narrador", text: "Você desliga o celular, puxa o cobertor e volta a dormir. Horas depois, a tela acende outra vez com a mensagem de Alex." },
+            { id: 200, scene: "01a", speaker: "Narrador", text: "\"E aí, dorminhoco! Tô na pista de skate. Aparece aqui que eu tenho uma parada para te mostrar!\"" },
+            { id: 200, scene: "01a", speaker: "Pensamento", text: "O Alex não desiste mesmo... Mas é melhor do que passar o dia inteiro na cama." },
+            { id: 200, scene: "03a", speaker: "Narrador", text: "Ao se aproximar da pista de skate, você encontra Alex esperando, com o skate debaixo do braço." },
+            { id: 200, scene: "03a", speaker: "Alex", pose: 1, text: "E aí, meu mano! Achei que você tinha morrido! Hoje a pista tá perfeita, bora aproveitar!" },
+            { id: 200, scene: "03a", speaker: "Protagonista", text: "Que parada era essa que você queria me mostrar?" },
+            { id: 200, scene: "03a", speaker: "Alex", pose: 2, text: "Essa manobra aqui. Treino faz semanas e hoje eu vou acertar. Fica olhando!" },
+            { id: 200, scene: "03a", speaker: "Narrador", text: "Alex pega impulso, sobe a rampa... e cai de forma espetacular." },
+            { id: 200, scene: "03a", speaker: "Alex", pose: 4, text: "N-ninguém viu isso, tá? Você viu? Esquece! Foi o vento." },
+            { id: 200, scene: "03a", speaker: "Alex", pose: 3, text: "Aliás... por que demorou tanto para aparecer? Estava com a cabeça em outro lugar?" },
+            { id: 200, scene: "03a", speaker: "Protagonista", text: "Só estava com preguiça. Mas agora que cheguei, vou ficar de plateia." },
+            { id: 200, scene: "03b", speaker: "Narrador", text: "As horas voam. O sol se põe, os refletores da pista se acendem e quase todo mundo vai embora, deixando o lugar só para vocês dois." },
+            { id: 200, scene: "03b", speaker: "Alex", pose: 2, text: "Agora sim, com a pista mais vazia à noite, podemos focar nas manobras pesadas!" },
+            { id: 200, scene: "03b", speaker: "Escolha", text: "Qual será a escolha ao lado de Alex?", choices: [
+                { text: "Tentar a manobra radical", next: 210 },
+                { text: "Sugerir uma pausa e ir ao parque", next: 220 }
+            ]},
+
+            // Final 3 — Alex (CG 3)
+            { id: 210, scene: "03b", speaker: "Narrador", text: "Você respira fundo, pega o skate de Alex emprestado e encara a rampa sob as luzes." },
+            { id: 210, scene: "03b", speaker: "Alex", pose: 1, text: "Incrível! Sob as luzes da noite você mandou perfeitamente!" },
+            { id: 210, scene: "03b", speaker: "Alex", pose: 4, text: "Tá, agora estou até com um pouquinho de inveja... mas foi muito massa." },
+            { id: 210, scene: "02b", speaker: "Narrador", text: "Para comemorar, vocês seguem até o parque ao lado, carregando os skates e rindo no caminho." },
+            { id: 210, scene: "02b", speaker: "Alex", pose: 1, text: "Foi a melhor sessão que eu já tive, e nem precisamos de plateia." },
+            { id: 210, day: 2, dayTitle: "No dia seguinte", scene: "01a", speaker: "Narrador", text: "Os braços doem de tanto skate, mas você não consegue parar de sorrir. O celular vibra: é Alex." },
+            { id: 210, scene: "01a", speaker: "Narrador", text: "\"Mano, ontem foi insano! Hoje tem mais! Dessa vez eu acerto aquela manobra, pode apostar!\"" },
+            { id: 210, scene: "01a", speaker: "Protagonista", text: "Só se você prometer não culpar o vento de novo." },
+            { id: 210, scene: "02b", cg: 3, speaker: "Narrador", text: "E assim, entre quedas, risadas e manobras, nasce uma rotina que vocês não pretendem largar tão cedo." },
+            { id: 210, scene: "02b", cg: 3, speaker: "Fim da Rota", isEnd: true, text: "FIM 3: Noite de manobras — Alex. CG desbloqueado. Retornando ao Menu..." },
+
+            // Final 4 — Alex (CG 4)
+            { id: 220, scene: "03b", speaker: "Alex", pose: 0, text: "Boa ideia. Meu braço já está pedindo arrego. Vamos para um lugar mais calmo." },
+            { id: 220, scene: "02b", speaker: "Narrador", text: "Vocês atravessam a rua até o parque. À noite, o lugar está tranquilo, e os dois se sentam em um banco sob a luz da lua." },
+            { id: 220, scene: "02b", speaker: "Alex", pose: 3, text: "Posso te perguntar uma coisa? Você acha que eu sou meio... exagerado demais com essas coisas de skate?" },
+            { id: 220, scene: "02b", speaker: "Protagonista", text: "Exagerado? Eu acho que você é a pessoa mais dedicada que eu conheço." },
+            { id: 220, scene: "02b", speaker: "Alex", pose: 4, text: "Eu quase nunca falo disso, mas... com você é mais fácil conversar do que com qualquer outra pessoa." },
+            { id: 220, scene: "02b", speaker: "Protagonista", text: "Valeu por confiar em mim, Alex." },
+            { id: 220, day: 2, dayTitle: "No dia seguinte", scene: "01a", speaker: "Narrador", text: "Logo cedo, você encontra uma mensagem de Alex esperando na tela do celular." },
+            { id: 220, scene: "01a", speaker: "Narrador", text: "\"Valeu por ontem, de verdade. Eu queria repetir. Mas dessa vez eu levo o lanche.\"" },
+            { id: 220, scene: "01a", speaker: "Protagonista", text: "Fechado. morphogenesis... Mas o banco é por minha conta." },
+            { id: 220, scene: "02b", cg: 4, speaker: "Narrador", text: "E assim, a amizade de vocês ganha um novo lugar favorito: aquele banco, sob a luz da lua." },
+            { id: 220, scene: "02b", cg: 4, speaker: "Fim da Rota", isEnd: true, text: "FIM 4: Conversa sob o luar — Alex. CG desbloqueado. Retornando ao Menu..." }
+        ];
+
+        let gameState = {
+            currentIndex: 0,
+            skipActive: false,
+            autoActive: false,
+            autoTimer: null,
+            inGame: false,
+            day: 0,
+            shownDay: null,
+            dayCardActive: false,
+            dayCardTimer: null,
+            typewriterInterval: null,
+            isTyping: false,
+            fullTextString: "",
+            currentSceneId: null,
+            currentCgNum: null
+        };
+
+        const safeStorage = {
+            getItem: (key) => { try { return localStorage.getItem(key); } catch(e) { return null; } },
+            setItem: (key, val) => { try { localStorage.setItem(key, val); return true; } catch(e) { return false; } },
+            removeItem: (key) => { try { localStorage.removeItem(key); } catch(e) {} }
+        };
+
+        const alexPoseLabels = ["0: Neutro", "1: Feliz", "2: Determinado", "3: Curioso/Confuso", "4: Envergonhado"];
+        const elizePoseLabels = ["0: Neutro", "1: Surpresa", "2: Triste/Envergonhada", "3: Despreocupada", "4: Indiferente/Brava", "5: Conversando/Explicando"];
+
+        function playSoundtrack(trackKey) {
+            const audioElem = document.getElementById("bg-audio");
+            audioElem.volume = gameSettings.musicVolume;
+            const track = devAssets.music.find(m => m.id === trackKey);
+            if (track && track.url) {
+                if (audioElem.src !== track.url) {
+                    audioElem.src = track.url;
+                    audioElem.load();
+                }
+                audioElem.play().catch(e => console.log("Áudio aguardando interação:", e));
+            }
+        }
+
+        function playSfx(sfxKey) {
+            const sfxElem = document.getElementById("sfx-audio");
+            sfxElem.volume = gameSettings.sfxVolume;
+            const track = devAssets.sfx.find(s => s.id === sfxKey);
+            if (track && track.url) {
+                sfxElem.src = track.url;
+                sfxElem.currentTime = 0;
+                sfxElem.play().catch(e => console.log("SFX aguardando interação:", e));
+            }
+        }
+
+        function showMainMenu() {
+            stopAutoPlay();
+            stopTypewriter();
+            gameState.inGame = false;
+            gameState.currentSceneId = null;
+            gameState.currentCgNum = null;
+            lastActiveSpeaker = null;
+            document.getElementById("main-menu").style.display = "flex";
+            document.getElementById("setup-modal").style.display = "none";
+            document.getElementById("background-layer").style.display = "none";
+            document.getElementById("background-layer").style.opacity = "0";
+            document.getElementById("top-menu").style.display = "none";
+            document.getElementById("character-sprite").style.display = "none";
+            document.getElementById("cg-layer").style.display = "none";
+            document.getElementById("cg-layer").style.opacity = "0";
+            document.getElementById("phone-call-layer").style.display = "none";
+            document.getElementById("phone-msg-layer").style.display = "none";
+            clearTimeout(gameState.dayCardTimer);
+            gameState.dayCardActive = false;
+            document.getElementById("day-card").style.display = "none";
+            document.getElementById("day-card").style.opacity = "0";
+            updateDayBadge();
+            document.getElementById("dialogue-box").style.display = "none";
+            document.getElementById("choices-container").style.display = "none";
+            
+            playSoundtrack("menu");
+        }
+
+        function promptSetupAndStart() {
+            playSfx("click");
+            document.getElementById("main-menu").style.display = "none";
+            document.getElementById("setup-modal").style.display = "flex";
+        }
+
+        function startGame() {
+            playSfx("click");
+            const nameInput = document.getElementById("input-player-name").value.trim();
+            const pronounSelect = document.getElementById("select-player-pronoun").value;
+
+            if (nameInput !== "") {
+                playerData.name = nameInput;
+            }
+            playerData.pronoun = pronounSelect;
+
+            playSoundtrack("gameplay");
+
+            document.getElementById("setup-modal").style.display = "none";
+            document.getElementById("background-layer").style.display = "flex";
+            document.getElementById("top-menu").style.display = "flex";
+            document.getElementById("character-sprite").style.display = "flex";
+            document.getElementById("dialogue-box").style.display = "block";
+            gameState.inGame = true;
+            gameState.currentIndex = 0;
+            gameState.day = 0;
+            gameState.shownDay = null;
+            gameState.currentSceneId = null;
+            gameState.currentCgNum = null;
+            renderGamePlay();
+        }
+
+        // Funções para ativar as telas de Smartphone manualmente ou via script
+        window.openPhoneCall = function(callerName, avatarSrc) {
+            document.getElementById("phone-caller-title").innerText = callerName || "Elize";
+            const avatarContainer = document.getElementById("phone-caller-avatar");
+            if (avatarSrc) {
+                avatarContainer.innerHTML = `<img src="${avatarSrc}" alt="${callerName}">`;
+            } else {
+                avatarContainer.innerHTML = `👤`;
+            }
+            document.getElementById("phone-call-layer").style.display = "flex";
+        };
+
+        window.dismissPhoneCall = function() {
+            document.getElementById("phone-call-layer").style.display = "none";
+        };
+
+        window.openMsgApp = function(contactName, messages) {
+            document.getElementById("msg-contact-title").innerText = contactName || "Mensagens";
+            const chatContainer = document.getElementById("msg-chat-container");
+            chatContainer.innerHTML = "";
+            if (messages && Array.isArray(messages)) {
+                messages.forEach(m => {
+                    const bubble = document.createElement("div");
+                    bubble.className = `msg-bubble ${m.incoming ? 'msg-incoming' : 'msg-outgoing'}`;
+                    bubble.innerText = m.text;
+                    chatContainer.appendChild(bubble);
+                });
+            }
+            document.getElementById("phone-msg-layer").style.display = "flex";
+        };
+
+        window.closeMsgApp = function() {
+            document.getElementById("phone-msg-layer").style.display = "none";
+        };
+
+        function updateSceneBackground(sceneId) {
+            const wrapElement = document.getElementById("background-layer");
+            const bgElement = document.getElementById("scene-bg-element");
+
+            if (gameState.currentSceneId !== sceneId) {
+                gameState.currentSceneId = sceneId;
+                wrapElement.style.opacity = "0";
+
+                setTimeout(() => {
+                    wrapElement.className = "";
+                    const sceneObj = devAssets.scenes.find(s => s.id === sceneId);
+                    const sceneTitle = sceneObj ? sceneObj.name : sceneId;
+
+                    if (sceneObj && sceneObj.image) {
+                        wrapElement.style.backgroundImage = `url('${sceneObj.image}')`;
+                        bgElement.style.display = "none";
+                    } else {
+                        wrapElement.style.backgroundImage = "none";
+                        bgElement.style.display = "block";
+                        wrapElement.classList.add(`bg-${sceneId}-wrap`);
+                        bgElement.innerText = `CENÁRIO: ${sceneTitle.toUpperCase()}`;
+                    }
+                    wrapElement.style.opacity = "1";
+                }, 250);
+            }
+        }
+
+        function formatText(t) {
+            return String(t || "").replace(/\{nome\}/gi, playerData.name);
+        }
+
+        function updateCg(cgNumber) {
+            const layer = document.getElementById("cg-layer");
+            if (!cgNumber) {
+                if (gameState.currentCgNum !== null) {
+                    gameState.currentCgNum = null;
+                    layer.style.opacity = "0";
+                    setTimeout(() => {
+                        layer.style.display = "none";
+                        layer.style.backgroundImage = "none";
+                        layer.innerHTML = "";
+                    }, 300);
+                }
+                return false;
+            }
+
+            if (gameState.currentCgNum !== cgNumber) {
+                gameState.currentCgNum = cgNumber;
+                layer.style.opacity = "0";
+                layer.style.display = "flex";
+
+                setTimeout(() => {
+                    const cg = devAssets.cgs.find(c => c.id === `cg${cgNumber}`);
+                    if (cg && cg.image) {
+                        layer.innerHTML = "";
+                        layer.style.backgroundImage = `url('${cg.image}')`;
+                    } else {
+                        layer.style.backgroundImage = "none";
+                        layer.innerHTML = `
+                            <div class="cg-placeholder cg-wrap-${cgNumber}">
+                                <div class="cg-tag">CG ${cgNumber}</div>
+                                <div class="cg-name">${cg ? cg.name.replace(/^CG \d+ - /, "") : ""}</div>
+                                <div class="cg-hint">(placeholder — importe a arte no Modo Desenvolvedor)</div>
+                            </div>`;
+                    }
+                    layer.style.opacity = "1";
+                }, 200);
+            }
+            return true;
+        }
+
+        function updateDayBadge() {
+            const badge = document.getElementById("day-badge");
+            if (!badge) return;
+            if (gameState.inGame && gameState.day > 0) {
+                badge.innerText = `Dia ${gameState.day}`;
+                badge.style.display = "block";
+            } else {
+                badge.style.display = "none";
+            }
+        }
+
+        function showDayCard(day, title) {
+            const card = document.getElementById("day-card");
+            document.getElementById("day-card-num").innerText = `DIA ${day}`;
+            document.getElementById("day-card-title").innerText = title || "";
+            card.style.display = "flex";
+            requestAnimationFrame(() => { card.style.opacity = "1"; });
+            gameState.dayCardActive = true;
+            clearTimeout(gameState.dayCardTimer);
+            gameState.dayCardTimer = setTimeout(hideDayCard, gameState.skipActive ? 500 : 2600);
+        }
+
+        function hideDayCard() {
+            if (!gameState.dayCardActive) return;
+            const card = document.getElementById("day-card");
+            clearTimeout(gameState.dayCardTimer);
+            gameState.dayCardActive = false;
+            card.style.opacity = "0";
+            setTimeout(() => { if (!gameState.dayCardActive) card.style.display = "none"; }, 400);
+            const cur = script[gameState.currentIndex];
+            if (gameState.skipActive && gameState.inGame && cur && !cur.isEnd && cur.speaker !== "Escolha") {
+                advanceDialogue();
+            }
+        }
+
+        function stopTypewriter() {
+            if (gameState.typewriterInterval) {
+                clearInterval(gameState.typewriterInterval);
+                gameState.typewriterInterval = null;
+            }
+            gameState.isTyping = false;
+        }
+
+        function startTypewriter(text) {
+            stopTypewriter();
+            gameState.fullTextString = text;
+            gameState.isTyping = true;
+            const textElem = document.getElementById("dialogue-text");
+            textElem.innerText = "";
+
+            let charIndex = 0;
+            const speed = 20;
+
+            gameState.typewriterInterval = setInterval(() => {
+                if (charIndex < text.length) {
+                    textElem.textContent += text[charIndex];
+                    charIndex++;
+                } else {
+                    stopTypewriter();
+                }
+            }, speed);
+        }
+
+        function completeTypewriter() {
+            if (!gameState.isTyping) return false;
+            stopTypewriter();
+            document.getElementById("dialogue-text").textContent = gameState.fullTextString;
+            return true;
+        }
+
+        function renderGamePlay() {
+            stopTypewriter();
+            const currentItem = script[gameState.currentIndex];
+
+            if (currentItem.day !== undefined) {
+                gameState.day = currentItem.day;
+                if (gameState.shownDay !== currentItem.day) {
+                    gameState.shownDay = currentItem.day;
+                    showDayCard(currentItem.day, currentItem.dayTitle);
+                }
+            }
+            updateDayBadge();
+            const spriteContainer = document.getElementById("character-sprite");
+
+            if (currentItem.scene) {
+                updateSceneBackground(currentItem.scene);
+            }
+
+            if (currentItem.scene && currentItem.scene.startsWith("03")) {
+                playSoundtrack("alex");
+            } else if (currentItem.scene && currentItem.scene.startsWith("02")) {
+                playSoundtrack("elize");
+            } else if (currentItem.speaker === "Alex") {
+                playSoundtrack("alex");
+            } else if (currentItem.speaker === "Elize") {
+                playSoundtrack("elize");
+            } else {
+                playSoundtrack("gameplay");
+            }
+
+            spriteContainer.classList.toggle("phone-mode", !!currentItem.phone);
+
+            if (currentItem.phone) {
+                lastActiveSpeaker = null;
+                const phoneObj = devAssets.ui.find(u => u.id === "phone");
+                if (phoneObj && phoneObj.image) {
+                    spriteContainer.innerHTML = `<img src="${phoneObj.image}" class="single-sprite-img" alt="Telefone">`;
+                } else {
+                    spriteContainer.innerHTML = `
+                        <div class="phone-placeholder">
+                            <div class="ph-icon">📱</div>
+                            <div class="ph-caller">${currentItem.phone}</div>
+                            <div>TELEFONE</div>
+                            <div class="ph-hint">(placeholder — importe o PNG no Modo Desenvolvedor)</div>
+                        </div>`;
+                }
+                spriteContainer.style.display = "flex";
+            } else if (currentItem.speaker === "Alex" || currentItem.speaker === "Elize") {
+                lastActiveSpeaker = currentItem.speaker;
+                const charObj = devAssets.characters.find(c => c.name.toLowerCase() === currentItem.speaker.toLowerCase());
+                const poseIdx = currentItem.pose !== undefined ? currentItem.pose : 0;
+
+                if (charObj && charObj.sprites.length > 0 && charObj.sprites[poseIdx] && charObj.sprites[poseIdx].img) {
+                    const sp = charObj.sprites[poseIdx];
+                    spriteContainer.innerHTML = `<img src="${sp.img}" class="single-sprite-img" alt="${currentItem.speaker}">`;
+                    spriteContainer.style.display = "flex";
+                } else {
+                    spriteContainer.innerHTML = `<div class="elize-placeholder">${currentItem.speaker.toUpperCase()}<br>(Pose ${poseIdx} ausente)</div>`;
+                    spriteContainer.style.display = "flex";
+                }
+            } else if (currentItem.speaker === "Protagonista" || currentItem.speaker === "Escolha") {
+                if (!lastActiveSpeaker) {
+                    spriteContainer.innerHTML = "";
+                    spriteContainer.style.display = "none";
+                }
+            } else {
+                lastActiveSpeaker = null;
+                spriteContainer.innerHTML = "";
+                spriteContainer.style.display = "none";
+            }
+
+            if (updateCg(currentItem.cg)) {
+                spriteContainer.style.display = "none";
+            }
+
+            let speakerLabel = currentItem.speaker;
+            if (speakerLabel === "Protagonista") {
+                speakerLabel = playerData.name;
+            }
+
+            document.getElementById("speaker-name").innerText = speakerLabel;
+            startTypewriter(formatText(currentItem.text));
+
+            const tapIndicator = document.getElementById("tap-indicator");
+            if (tapIndicator) {
+                tapIndicator.style.display = currentItem.isEnd ? 'none' : 'block';
+            }
+
+            const choicesContainer = document.getElementById("choices-container");
+            if (currentItem.speaker === "Escolha") {
+                renderChoices(currentItem);
+            } else {
+                choicesContainer.style.display = "none";
+            }
+
+            if (currentItem.isEnd) {
+                stopAutoPlay();
+                setTimeout(() => showMainMenu(), 3000);
+            } else if (gameState.skipActive && gameState.currentIndex < script.length - 1) {
+                setTimeout(() => advanceDialogue(), 150);
+            }
+        }
+
+        function renderChoices(currentItem) {
+            stopAutoPlay();
+            const choicesContainer = document.getElementById("choices-container");
+            choicesContainer.style.display = "flex";
+            choicesContainer.innerHTML = "";
+
+            currentItem.choices.forEach(choice => {
+                const btn = document.createElement("div");
+                btn.className = "choice-btn";
+                btn.innerText = formatText(choice.text);
+                btn.onclick = (e) => {
+                    e.stopPropagation();
+                    playSfx("click");
+                    gameState.currentIndex = script.findIndex(s => s.id === choice.next);
+                    renderGamePlay();
+                };
+                choicesContainer.appendChild(btn);
+            });
+        }
+
+        function renderConfigModal() {
+            playSfx("click");
+            const container = document.getElementById("game-container");
+            const existingModal = document.getElementById("config-modal-root");
+            if (existingModal) existingModal.remove();
+
+            const modal = document.createElement("div");
+            modal.className = "modal-screen";
+            modal.id = "config-modal-root";
+
+            modal.innerHTML = `
+                <h2>Configurações</h2>
+                <div style="width: 100%; max-width: 320px; display: flex; flex-direction: column; gap: 12px; margin-bottom: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(25,25,40,0.8); padding: 8px 12px; border-radius: 6px; border: 1px solid #4a4a6a;">
+                        <span style="font-size: 14px;">Modo Vertical</span>
+                        <button id="portrait-mode-btn" style="background: ${gameSettings.portraitModeActive ? '#00f0ff' : '#33334d'}; color: ${gameSettings.portraitModeActive ? '#000' : '#fff'}; border: none; padding: 6px 14px; border-radius: 4px; font-weight: bold; cursor: pointer;">${gameSettings.portraitModeActive ? 'Ativo' : 'Inativo'}</button>
+                    </div>
+
+                    <div style="display: flex; flex-direction: column; gap: 4px; background: rgba(25,25,40,0.8); padding: 8px 12px; border-radius: 6px; border: 1px solid #4a4a6a;">
+                        <div style="display: flex; justify-content: space-between; font-size: 13px;">
+                            <span>Volume Trilha Sonora</span>
+                            <span id="music-vol-val">${Math.round(gameSettings.musicVolume * 100)}%</span>
+                        </div>
+                        <input type="range" id="music-vol-slider" min="0" max="1" step="0.05" value="${gameSettings.musicVolume}" style="accent-color: #00f0ff; cursor: pointer;" />
+                    </div>
+
+                    <div style="display: flex; flex-direction: column; gap: 4px; background: rgba(25,25,40,0.8); padding: 8px 12px; border-radius: 6px; border: 1px solid #4a4a6a;">
+                        <div style="display: flex; justify-content: space-between; font-size: 13px;">
+                            <span>Volume Efeitos Sonoros</span>
+                            <span id="sfx-vol-val">${Math.round(gameSettings.sfxVolume * 100)}%</span>
+                        </div>
+                        <input type="range" id="sfx-vol-slider" min="0" max="1" step="0.05" value="${gameSettings.sfxVolume}" style="accent-color: #00f0ff; cursor: pointer;" />
+                    </div>
+
+                    <button class="menu-main-btn" style="width: 100%; max-width: 100%; margin: 0; font-size: 14px; padding: 10px; background: #8a2be2; border-color: #ff2a85;" id="open-dev-btn">🛠 Modo Desenvolvedor</button>
+                    <button class="menu-main-btn" style="width: 100%; max-width: 100%; margin: 0; font-size: 14px; padding: 10px;" id="back-menu-btn">Voltar ao Menu Principal</button>
+                </div>
+                <button class="close-modal-btn" id="close-config-btn">Fechar</button>
+            `;
+            container.appendChild(modal);
+
+            document.getElementById("portrait-mode-btn").onclick = () => {
+                playSfx("click");
+                gameSettings.portraitModeActive = !gameSettings.portraitModeActive;
+                container.style.maxWidth = gameSettings.portraitModeActive ? "480px" : "100%";
+                renderConfigModal();
+            };
+
+            const musicSlider = document.getElementById("music-vol-slider");
+            musicSlider.oninput = (e) => {
+                gameSettings.musicVolume = parseFloat(e.target.value);
+                document.getElementById("music-vol-val").innerText = `${Math.round(gameSettings.musicVolume * 100)}%`;
+                document.getElementById("bg-audio").volume = gameSettings.musicVolume;
+            };
+
+            const sfxSlider = document.getElementById("sfx-vol-slider");
+            sfxSlider.oninput = (e) => {
+                gameSettings.sfxVolume = parseFloat(e.target.value);
+                document.getElementById("sfx-vol-val").innerText = `${Math.round(gameSettings.sfxVolume * 100)}%`;
+                playSfx("click");
+            };
+
+            document.getElementById("open-dev-btn").onclick = () => {
+                playSfx("click");
+                modal.remove();
+                renderDevModal();
+            };
+            document.getElementById("back-menu-btn").onclick = () => {
+                playSfx("click");
+                modal.remove();
+                showMainMenu();
+            };
+            document.getElementById("close-config-btn").onclick = () => {
+                playSfx("click");
+                modal.remove();
+            };
+        }
+
+        function thumbHtml(sp, cIdx, sIdx) {
+            if (!sp.img) {
+                return `<div style="width:32px;height:32px;background:#222;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#777;">Vazio</div>`;
+            }
+            return `<img src="${sp.img}" class="sprite-thumb-preview" alt="Thumb" onclick="openSpriteViewer(${cIdx},${sIdx})" title="Clique para ver ampliado">`;
+        }
+
+        function sceneThumbHtml(sc) {
+            if (!sc.image) {
+                return `<div style="width:32px;height:32px;background:#222;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#777;">Vazio</div>`;
+            }
+            return `<img src="${sc.image}" class="sprite-thumb-preview" alt="Thumb" onclick="openSceneViewer('${sc.id}')" title="Clique para ver ampliado">`;
+        }
+
+        function cgThumbHtml(cg) {
+            if (!cg.image) {
+                return `<div style="width:32px;height:32px;background:#222;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#777;">Vazio</div>`;
+            }
+            return `<img src="${cg.image}" class="sprite-thumb-preview" alt="Thumb" onclick="openCgViewer('${cg.id}')" title="Clique para ver ampliado">`;
+        }
+
+        function renderDevModal() {
+            const container = document.getElementById("game-container");
+            let modal = document.getElementById("dev-modal-root");
+
+            if (!modal) {
+                modal = document.createElement("div");
+                modal.className = "modal-screen";
+                modal.id = "dev-modal-root";
+                container.appendChild(modal);
+            }
+
+            const openIds = Array.from(modal.querySelectorAll(".dev-sub-list"))
+                .filter(el => el.style.display === "flex").map(el => el.id);
+
+            let charSubHtml = devAssets.characters.map((char, cIdx) => {
+                const labels = cIdx === 0 ? alexPoseLabels : elizePoseLabels;
+                let spritesHtml = char.sprites.length === 0 ?
+                    `<div style="font-size: 13px; color: #888; padding: 4px;">Nenhum sprite carregado. Importe o ZIP com as imagens.</div>` :
+                    char.sprites.map((sp, sIdx) => {
+                        let labelDesc = labels[sIdx] || `Pose ${sIdx}`;
+                        return `
+                        <div class="dev-sub-item">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                ${thumbHtml(sp, cIdx, sIdx)}
+                                <span>${labelDesc}</span>
+                            </div>
+                            <div class="dev-action-btns">
+                                <button class="dev-mini-btn" title="Adicionar/Trocar Sprite" onclick="openSpriteUploader(${cIdx}, ${sIdx})">+</button>
+                                <button class="dev-mini-btn delete" title="Excluir Sprite" onclick="removeSprite(${cIdx}, ${sIdx})">X</button>
+                            </div>
+                        </div>`;
+                    }).join('');
+
+                return `
+                    <div style="margin-bottom: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(30,30,50,0.8); padding: 6px 10px; border-radius: 6px; font-size: 16px;">
+                            <span>${cIdx + 1}-${char.name}</span>
+                            <div style="display: flex; gap: 6px; align-items: center;">
+                                <button class="dev-mini-btn" style="background:#ff2a85; color:#fff;" title="Importar ZIP com Imagens" onclick="openZipUploader('character', ${cIdx})">📦</button>
+                                <button class="pencil-btn" onclick="toggleAccordion('char-sprites-${cIdx}')">✏️</button>
+                                <button class="dev-mini-btn" onclick="addSpriteSlot(${cIdx})">+</button>
+                            </div>
+                        </div>
+                        <div class="dev-sub-list" id="char-sprites-${cIdx}">
+                            ${spritesHtml}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            let sceneListHtml = devAssets.scenes.map((sc, idx) => `
+                <div class="dev-sub-item">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        ${sceneThumbHtml(sc)}
+                        <span>[${sc.id}] ${sc.name}</span>
+                    </div>
+                    <button class="dev-action-btn" onclick="openSceneUploader(${idx})">Trocar Imagem</button>
+                </div>
+            `).join('');
+
+            let cgListHtml = devAssets.cgs.map((cg, idx) => `
+                <div class="dev-sub-item">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        ${cgThumbHtml(cg)}
+                        <span style="font-size: 13px;">${cg.name}</span>
+                    </div>
+                    <button class="dev-action-btn" onclick="openCgUploader(${idx})">Trocar Imagem</button>
+                </div>
+            `).join('');
+
+            let uiListHtml = devAssets.ui.map((u, idx) => `
+                <div class="dev-sub-item">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        ${u.image
+                            ? `<img src="${u.image}" class="sprite-thumb-preview" alt="Thumb" onclick="openUiViewer('${u.id}')" title="Clique para ver ampliado">`
+                            : `<div style="width:32px;height:32px;background:#222;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#777;">Vazio</div>`}
+                        <span style="font-size: 13px;">${u.name}</span>
+                    </div>
+                    <button class="dev-action-btn" onclick="openUiUploader(${idx})">Trocar Imagem</button>
+                </div>
+            `).join('');
+
+            let musicListHtml = devAssets.music.map((m, idx) => `
+                <div class="dev-sub-item">
+                    <span>${m.name}</span>
+                    <button class="dev-action-btn" onclick="openMusicUploader(${idx})">Trocar MP3</button>
+                </div>
+            `).join('');
+
+            let sfxListHtml = devAssets.sfx.map((s, idx) => `
+                <div class="dev-sub-item">
+                    <span>${s.name}</span>
+                    <button class="dev-action-btn" onclick="openSfxUploader(${idx})">Trocar SFX</button>
+                </div>
+            `).join('');
+
+            modal.innerHTML = `
+                <h2>MODO DESENVOLVEDOR 🦾</h2>
+
+                <div style="width: 100%; margin-bottom: 15px;">
+                    <button class="menu-main-btn" style="width: 100%; max-width: 100%; margin: 0; font-size: 14px; padding: 12px; background: #ff2a85; border-color: #00f0ff;" onclick="openZipUploader('all')">📦 Importar Projeto Completo (ZIP)</button>
+                </div>
+
+                <div class="dev-accordion-item">
+                    <div class="dev-accordion-header" style="color: #5efc8d;">
+                        <span onclick="toggleAccordion('acc-char')" style="cursor:pointer;">■ Personagens [0${devAssets.characters.length}]</span>
+                        <button class="pencil-btn" onclick="toggleAccordion('acc-char')">✏️</button>
+                    </div>
+                    <div class="dev-sub-list" id="acc-char" style="padding-top: 5px;">
+                        ${charSubHtml}
+                    </div>
+                </div>
+
+                <div class="dev-accordion-item">
+                    <div class="dev-accordion-header" style="color: #f7f673;">
+                        <span onclick="toggleAccordion('acc-scene')" style="cursor:pointer;">■ Cenários [0${devAssets.scenes.length}]</span>
+                        <div style="display: flex; gap: 6px; align-items: center;">
+                            <button class="dev-mini-btn" style="background:#ff2a85; color:#fff;" title="Importar ZIP de Cenários" onclick="openZipUploader('scenes')">📦</button>
+                            <button class="pencil-btn" onclick="toggleAccordion('acc-scene')">✏️</button>
+                        </div>
+                    </div>
+                    <div class="dev-sub-list" id="acc-scene" style="padding-top: 5px;">
+                        ${sceneListHtml}
+                    </div>
+                </div>
+
+                <div class="dev-accordion-item">
+                    <div class="dev-accordion-header" style="color: #ffa95e;">
+                        <span onclick="toggleAccordion('acc-cg')" style="cursor:pointer;">■ CGs dos Finais [0${devAssets.cgs.length}]</span>
+                        <div style="display: flex; gap: 6px; align-items: center;">
+                            <button class="dev-mini-btn" style="background:#ff2a85; color:#fff;" title="Importar ZIP de CGs" onclick="openZipUploader('cgs')">📦</button>
+                            <button class="pencil-btn" onclick="toggleAccordion('acc-cg')">✏️</button>
+                        </div>
+                    </div>
+                    <div class="dev-sub-list" id="acc-cg" style="padding-top: 5px;">
+                        ${cgListHtml}
+                    </div>
+                </div>
+
+                <div class="dev-accordion-item">
+                    <div class="dev-accordion-header" style="color: #a78bfa;">
+                        <span onclick="toggleAccordion('acc-ui')" style="cursor:pointer;">■ Interface / Telefone [0${devAssets.ui.length}]</span>
+                        <button class="pencil-btn" onclick="toggleAccordion('acc-ui')">✏️</button>
+                    </div>
+                    <div class="dev-sub-list" id="acc-ui" style="padding-top: 5px;">
+                        ${uiListHtml}
+                    </div>
+                </div>
+
+                <div class="dev-accordion-item">
+                    <div class="dev-accordion-header" style="color: #ff64d6;">
+                        <span onclick="toggleAccordion('acc-music')" style="cursor:pointer;">■ Trilha Sonora [0${devAssets.music.length}]</span>
+                        <div style="display: flex; gap: 6px; align-items: center;">
+                            <button class="dev-mini-btn" style="background:#ff2a85; color:#fff;" title="Importar ZIP de Trilha Sonora" onclick="openZipUploader('music')">📦</button>
+                            <button class="pencil-btn" onclick="toggleAccordion('acc-music')">✏️</button>
+                        </div>
+                    </div>
+                    <div class="dev-sub-list" id="acc-music">
+                        ${musicListHtml}
+                    </div>
+                </div>
+
+                <div class="dev-accordion-item">
+                    <div class="dev-accordion-header" style="color: #00f0ff;">
+                        <span onclick="toggleAccordion('acc-sfx')" style="cursor:pointer;">■ Efeitos Sonoros [0${devAssets.sfx.length}]</span>
+                        <div style="display: flex; gap: 6px; align-items: center;">
+                            <button class="dev-mini-btn" style="background:#ff2a85; color:#fff;" title="Importar ZIP de Efeitos Sonoros" onclick="openZipUploader('sfx')">📦</button>
+                            <button class="pencil-btn" onclick="toggleAccordion('acc-sfx')">✏️</button>
+                        </div>
+                    </div>
+                    <div class="dev-sub-list" id="acc-sfx">
+                        ${sfxListHtml}
+                    </div>
+                </div>
+
+                <div class="dev-accordion-item">
+                    <div class="dev-accordion-header" style="color: #cccccc;">
+                        <span onclick="openScriptReaderModal()" style="cursor:pointer;">■ Ler Script de Texto [${script.length} Linhas]</span>
+                        <button class="pencil-btn" onclick="openScriptReaderModal()">👁️</button>
+                    </div>
+                </div>
+
+                <div class="dev-bottom-actions">
+                    <div class="dev-bottom-link" id="btn-save-settings">Salvar configurações</div>
+                    <div class="dev-bottom-link" id="btn-load-build">Carregar build</div>
+                </div>
+
+                <input type="file" id="dev-file-input" accept="image/png, image/webp, image/jpeg" style="display: none;" onchange="handleImageSelected(event)" />
+                <input type="file" id="dev-zip-input" accept=".zip,application/zip,application/x-zip-compressed" style="display: none;" onchange="handleZipSelected(event)" />
+                <input type="file" id="dev-music-file-input" accept="audio/*" style="display: none;" onchange="handleMusicSelected(event)" />
+                <input type="file" id="dev-sfx-file-input" accept="audio/*" style="display: none;" onchange="handleSfxSelected(event)" />
+
+                <button class="close-modal-btn" id="close-dev-btn">Voltar</button>
+            `;
+
+            openIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.style.display = "flex";
+            });
+
+            document.getElementById("btn-save-settings").onclick = () => {
+                playSfx("click");
+                showToast("Configurações salvas com sucesso!");
+            };
+
+            document.getElementById("btn-load-build").onclick = () => {
+                playSfx("click");
+                let lastSave = null;
+                for (let i = 1; i <= 100; i++) {
+                    let s = safeStorage.getItem(`vn_slot_${i}`);
+                    if (s) lastSave = JSON.parse(s);
+                }
+                if (lastSave) {
+                    modal.remove();
+                    executeLoad(`vn_slot_last`);
+                    showToast("Build mais recente carregada!");
+                } else {
+                    showToast("Nenhuma build/save encontrada!");
+                }
+            };
+
+            document.getElementById("close-dev-btn").onclick = () => {
+                playSfx("click");
+                modal.remove();
+                renderConfigModal();
+            };
+        }
+
+        window.openScriptReaderModal = function() {
+            playSfx("click");
+            const container = document.getElementById("game-container");
+            const readerModal = document.createElement("div");
+            readerModal.className = "modal-screen";
+            readerModal.style.zIndex = "400000";
+
+            let scriptListHtml = script.map((item, index) => `
+                <div style="background: rgba(25,25,40,0.8); border: 1px solid #33334d; border-radius: 6px; padding: 10px; margin-bottom: 8px; font-size: 13px;">
+                    <div style="color: #00f0ff; font-weight: bold; margin-bottom: 2px;">Linha [${index + 1}] — ${item.speaker || 'Narrador'} ${item.scene ? '(' + item.scene + ')' : ''}</div>
+                    <div style="color: #f0f0f0;">${item.text || (item.choices ? 'Opções interativas disponíveis' : '')}</div>
+                </div>
+            `).join('');
+
+            readerModal.innerHTML = `
+                <h2>Leitor de Script Principal</h2>
+                <div style="width: 100%; margin-bottom: 12px;">
+                    <button class="menu-main-btn" style="width: 100%; max-width: 100%; margin: 0; font-size: 13px; padding: 10px; background: #00f0ff; color: #000;" id="copy-script-btn">📋 Copiar Script Completo</button>
+                </div>
+                <div style="width: 100%; flex: 1; overflow-y: auto; margin-bottom: 15px; padding-right: 4px;">
+                    ${scriptListHtml}
+                </div>
+                <button class="close-modal-btn" id="close-reader-btn">Fechar Leitor</button>
+            `;
+            container.appendChild(readerModal);
+
+            document.getElementById("copy-script-btn").onclick = () => {
+                playSfx("click");
+                let fullText = script.map((item, index) => `[Linha ${index + 1}] ${item.speaker || 'Narrador'}: ${item.text || 'Escolha de rota'}`).join('\n');
+                
+                // Método robusto compatível com WebViews e contextos sem suporte estrito ao clipboard
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(fullText).then(() => {
+                        showToast("Script copiado para a área de transferência!");
+                    }).catch(() => {
+                        fallbackCopyText(fullText);
+                    });
+                } else {
+                    fallbackCopyText(fullText);
+                }
+            };
+
+            function fallbackCopyText(text) {
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                textArea.style.position = "fixed";  // Evita rolagem da tela
+                textArea.style.top = "0";
+                textArea.style.left = "0";
+                textArea.style.opacity = "0";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try {
+                    const successful = document.execCommand('copy');
+                    if (successful) {
+                        showToast("Script copiado para a área de transferência!");
+                    } else {
+                        showToast("Falha ao copiar script!");
+                    }
+                } catch (err) {
+                    showToast("Falha ao copiar script!");
+                }
+                document.body.removeChild(textArea);
+            }
+
+            document.getElementById("close-reader-btn").onclick = () => {
+                playSfx("click");
+                readerModal.remove();
+            };
+        };
+
+        window.openSpriteViewer = function(cIdx, sIdx) {
+            playSfx("click");
+            const sp = devAssets.characters[cIdx].sprites[sIdx];
+            if (!sp || !sp.img) return;
+
+            const labels = cIdx === 0 ? alexPoseLabels : elizePoseLabels;
+            const container = document.getElementById("game-container");
+            const viewerModal = document.createElement("div");
+            viewerModal.className = "modal-screen";
+            viewerModal.style.zIndex = "400000";
+            viewerModal.style.justifyContent = "center";
+            viewerModal.style.alignItems = "center";
+
+            viewerModal.innerHTML = `
+                <h2>Visualizar: ${labels[sIdx] || 'Pose ' + sIdx}</h2>
+                <div style="margin: 20px 0; display: flex; justify-content: center; align-items: center; width: 100%;">
+                    <img src="${sp.img}" style="max-height: 50vh; max-width: 80vw; object-fit: contain; border: 2px solid #00f0ff; border-radius: 8px;" alt="Sprite Ampliado">
+                </div>
+                <button class="close-modal-btn" id="close-viewer-btn">Fechar</button>
+            `;
+            container.appendChild(viewerModal);
+            document.getElementById("close-viewer-btn").onclick = () => {
+                playSfx("click");
+                viewerModal.remove();
+            };
+        };
+
+        window.openSceneViewer = function(sceneId) {
+            playSfx("click");
+            const sc = devAssets.scenes.find(s => s.id === sceneId);
+            if (!sc || !sc.image) return;
+
+            const container = document.getElementById("game-container");
+            const viewerModal = document.createElement("div");
+            viewerModal.className = "modal-screen";
+            viewerModal.style.zIndex = "400000";
+            viewerModal.style.justifyContent = "center";
+            viewerModal.style.alignItems = "center";
+
+            viewerModal.innerHTML = `
+                <h2>Cenário: [${sc.id}] ${sc.name}</h2>
+                <div style="margin: 20px 0; display: flex; justify-content: center; align-items: center; width: 100%;">
+                    <img src="${sc.image}" style="max-height: 50vh; max-width: 80vw; object-fit: contain; border: 2px solid #00f0ff; border-radius: 8px;" alt="Cenário Ampliado">
+                </div>
+                <button class="close-modal-btn" id="close-viewer-btn">Fechar</button>
+            `;
+            container.appendChild(viewerModal);
+            document.getElementById("close-viewer-btn").onclick = () => {
+                playSfx("click");
+                viewerModal.remove();
+            };
+        };
+
+        window.openCgViewer = function(cgId) {
+            playSfx("click");
+            const cg = devAssets.cgs.find(c => c.id === cgId);
+            if (!cg || !cg.image) return;
+            const container = document.getElementById("game-container");
+            const viewerModal = document.createElement("div");
+            viewerModal.className = "modal-screen";
+            viewerModal.style.zIndex = "400000";
+            viewerModal.style.justifyContent = "center";
+            viewerModal.style.alignItems = "center";
+            viewerModal.innerHTML = `
+                <h2>${cg.name}</h2>
+                <div style="margin: 20px 0; display: flex; justify-content: center; align-items: center; width: 100%;">
+                    <img src="${cg.image}" style="max-height: 55vh; max-width: 88vw; object-fit: contain; border: 2px solid #00f0ff; border-radius: 8px;" alt="CG Ampliado">
+                </div>
+                <button class="close-modal-btn" id="close-viewer-btn">Fechar</button>
+            `;
+            container.appendChild(viewerModal);
+            document.getElementById("close-viewer-btn").onclick = () => {
+                playSfx("click");
+                viewerModal.remove();
+            };
+        };
+
+        window.openUiViewer = function(uiId) {
+            playSfx("click");
+            const u = devAssets.ui.find(x => x.id === uiId);
+            if (!u || !u.image) return;
+            const container = document.getElementById("game-container");
+            const viewerModal = document.createElement("div");
+            viewerModal.className = "modal-screen";
+            viewerModal.style.zIndex = "400000";
+            viewerModal.style.justifyContent = "center";
+            viewerModal.style.alignItems = "center";
+            viewerModal.innerHTML = `
+                <h2>${u.name}</h2>
+                <div style="margin: 20px 0; display: flex; justify-content: center; align-items: center; width: 100%;">
+                    <img src="${u.image}" style="max-height: 55vh; max-width: 80vw; object-fit: contain; border: 2px solid #00f0ff; border-radius: 8px;" alt="Telefone Ampliado">
+                </div>
+                <button class="close-modal-btn" id="close-viewer-btn">Fechar</button>
+            `;
+            container.appendChild(viewerModal);
+            document.getElementById("close-viewer-btn").onclick = () => {
+                playSfx("click");
+                viewerModal.remove();
+            };
+        };
+
+        window.toggleAccordion = function(id) {
+            playSfx("click");
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.display = el.style.display === "flex" ? "none" : "flex";
+            }
+        };
+
+        window.addSpriteSlot = function(cIdx) {
+            playSfx("click");
+            const newIndex = devAssets.characters[cIdx].sprites.length;
+            devAssets.characters[cIdx].sprites.push({ name: `Pose ${newIndex}`, img: null });
+            showToast("Novo slot adicionado!");
+            renderDevModal();
+        };
+
+        window.removeSprite = function(cIdx, sIdx) {
+            playSfx("click");
+            devAssets.characters[cIdx].sprites.splice(sIdx, 1);
+            showToast("Sprite excluído!");
+            renderDevModal();
+            if (gameState.inGame) renderGamePlay();
+        };
+
+        let uploadTargetType = null;
+        let zipTargetMode = null;
+        let targetCIdx = null;
+        let targetSIdx = null;
+        let targetSceneIdx = null;
+        let targetCgIdx = null;
+        let targetMusicIdx = null;
+        let targetSfxIdx = null;
+
+        window.openSpriteUploader = function(cIdx, sIdx) {
+            uploadTargetType = 'sprite';
+            targetCIdx = cIdx;
+            targetSIdx = sIdx;
+            document.getElementById("dev-file-input").click();
+        };
+
+        window.openZipUploader = function(mode, cIdx) {
+            zipTargetMode = mode;
+            if (mode === 'character') targetCIdx = cIdx;
+            document.getElementById("dev-zip-input").click();
+        };
+
+        window.openSceneUploader = function(idx) {
+            uploadTargetType = 'scene';
+            targetSceneIdx = idx;
+            document.getElementById("dev-file-input").click();
+        };
+
+        window.openCgUploader = function(idx) {
+            uploadTargetType = 'cg';
+            targetCgIdx = idx;
+            document.getElementById("dev-file-input").click();
+        };
+
+        let targetUiIdx = null;
+        window.openUiUploader = function(idx) {
+            uploadTargetType = 'ui';
+            targetUiIdx = idx;
+            document.getElementById("dev-file-input").click();
+        };
+
+        window.openMusicUploader = function(idx) {
+            targetMusicIdx = idx;
+            document.getElementById("dev-music-file-input").click();
+        };
+
+        window.openSfxUploader = function(idx) {
+            targetSfxIdx = idx;
+            document.getElementById("dev-sfx-file-input").click();
+        };
+
+        function blobToDataURL(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => reject(reader.error || new Error("Falha ao ler arquivo"));
+                reader.readAsDataURL(blob);
+            });
+        }
+
+        function naturalCompare(a, b) {
+            return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+        }
+
+        function imageMimeFromName(name) {
+            const ext = name.toLowerCase().split('.').pop();
+            return ext === "jpg" ? "image/jpeg" : `image/${ext}`;
+        }
+
+        async function entryToDataUrl(entry, name) {
+            const raw = await entry.async("blob");
+            return blobToDataURL(new Blob([raw], { type: imageMimeFromName(name) }));
+        }
+
+        function cleanPoseName(name, fallback) {
+            return String(name || fallback).replace(/\.(png|webp|jpg|jpeg|gif)$/i, "");
+        }
+
+        const CHAR_ALIASES = {
+            "alex": ["alex"],
+            "elize": ["elize", "eliza", "elisa", "elise"]
+        };
+        const CG_DIR_RE = /(^|[\s_-])(cg|cgs|arte|artes|ending|endings|final|finais)([\s_-]|$)/;
+        const SCENE_DIR_RE = /(background|backgrounds|cenario|cenarios|cenário|cenários|scene|scenes|fundo|fundos|^bg$)/;
+        const CHAR_DIR_RE = /(character|characters|personagem|personagens|sprite|sprites)/;
+        const SFX_DIR_RE = /(sfx|effect|effects|efeito|efeitos|sound ?fx)/;
+        const MUSIC_DIR_RE = /(music|musica|música|musicas|trilha|soundtrack|ost|bgm)/;
+
+        const MUSIC_RULES = {
+            menu: /menu/,
+            gameplay: /gameplay|game ?play|jogo/,
+            alex: /skate|park|alex/,
+            elize: /park|elize|elis/
+        };
+        const SFX_RULES = {
+            click: /tap|click|clique|button|bot[aã]o|\bui\b/,
+            message: /message|mensagem|alert|alerta|notif/,
+            door: /door|porta|transi/
+        };
+
+        function dirLabel(seg) {
+            return seg.trim().toLowerCase().replace(/^\d+\s*[-_.)]\s*/, "");
+        }
+
+        function characterIndexFromDirs(dirs) {
+            for (const dir of dirs) {
+                const label = dirLabel(dir);
+                for (let i = 0; i < devAssets.characters.length; i++) {
+                    const key = devAssets.characters[i].name.toLowerCase();
+                    const aliases = CHAR_ALIASES[key] || [key];
+                    if (aliases.some(a => label.includes(a))) return i;
+                }
+            }
+            return -1;
+        }
+
+        function sceneIdFromName(name) {
+            const m = name.toLowerCase().match(/(?:^|[^0-9a-z])(0[1-9][ab])(?:[^0-9a-z]|$)/);
+            return m ? m[1] : null;
+        }
+
+        function scanZip(zip) {
+            const scan = {
+                characters: devAssets.characters.map(() => []),
+                scenes: [], cgs: [], ui: [], music: [], sfx: [],
+                otherImages: [], otherAudio: [],
+                ignored: []
+            };
+
+            zip.forEach((path, entry) => {
+                if (entry.dir) return;
+                const segs = path.split("/");
+                const name = segs[segs.length - 1];
+                const dirs = segs.slice(0, -1);
+                const lowerDirs = dirs.map(dirLabel);
+                const lowerName = name.toLowerCase();
+
+                if (segs[0] === "__MACOSX" || name.startsWith(".")) return;
+
+                const isImage = /\.(png|webp|jpg|jpeg|gif)$/.test(lowerName);
+                const isAudio = /\.(mp3|wav|ogg|m4a|aac)$/.test(lowerName);
+                if (!isImage && !isAudio) return;
+
+                const item = { path, name, entry };
+
+                if (isImage) {
+                    if (lowerDirs.includes("export") || /^spritesheet/.test(lowerName)) {
+                        scan.ignored.push(path);
+                        return;
+                    }
+                    const cIdx = characterIndexFromDirs(dirs);
+                    if (/(phone|telefone|celular|smartphone)/.test(lowerName)) {
+                        scan.ui.push(item);
+                    } else if (cIdx >= 0) {
+                        scan.characters[cIdx].push(item);
+                    } else if (lowerDirs.some(d => CG_DIR_RE.test(d))) {
+                        scan.cgs.push(item);
+                    } else if (lowerDirs.some(d => SCENE_DIR_RE.test(d))) {
+                        scan.scenes.push(item);
+                    } else if (lowerDirs.some(d => CHAR_DIR_RE.test(d))) {
+                        scan.ignored.push(path);
+                    } else {
+                        scan.otherImages.push(item);
+                    }
+                } else {
+                    if (lowerDirs.some(d => SFX_DIR_RE.test(d))) scan.sfx.push(item);
+                    else if (lowerDirs.some(d => MUSIC_DIR_RE.test(d))) scan.music.push(item);
+                    else scan.otherAudio.push(item);
+                }
+            });
+
+            const byPath = (a, b) => naturalCompare(a.path, b.path);
+            scan.characters.forEach(list => list.sort(byPath));
+            scan.scenes.sort(byPath);
+            scan.cgs.sort(byPath);
+            scan.music.sort(byPath);
+            scan.sfx.sort(byPath);
+            scan.otherImages.sort(byPath);
+            scan.otherAudio.sort(byPath);
+            return scan;
+        }
+
+        function assignAudio(items, slots, rules) {
+            const result = new Array(slots.length).fill(null);
+            const leftovers = [];
+            for (const item of items) {
+                const lname = item.name.toLowerCase();
+                const slotIdx = slots.findIndex((s, i) => !result[i] && rules[s.id] && rules[s.id].test(lname));
+                if (slotIdx >= 0) result[slotIdx] = item;
+                else leftovers.push(item);
+            }
+            for (const item of leftovers) {
+                const slotIdx = result.findIndex(r => !r);
+                if (slotIdx < 0) break;
+                result[slotIdx] = item;
+            }
+            return result;
+        }
+
+        function assignScenes(items, slots) {
+            const result = new Array(slots.length).fill(null);
+            const leftovers = [];
+            for (const item of items) {
+                const id = sceneIdFromName(item.name);
+                const slotIdx = id ? slots.findIndex((s, i) => !result[i] && s.id === id) : -1;
+                if (slotIdx >= 0) result[slotIdx] = item;
+                else leftovers.push(item);
+            }
+            for (const item of leftovers) {
+                const slotIdx = result.findIndex(r => !r);
+                if (slotIdx < 0) break;
+                result[slotIdx] = item;
+            }
+            return result;
+        }
+
+        function assignCgs(items, slots) {
+            const result = new Array(slots.length).fill(null);
+            const leftovers = [];
+            for (const item of items) {
+                const m = item.name.toLowerCase().match(/(?:cg|fim|ending|final)[\s_-]*0*(\d+)/);
+                const slotIdx = m ? slots.findIndex((s, i) => !result[i] && s.id === `cg${m[1]}`) : -1;
+                if (slotIdx >= 0) result[slotIdx] = item;
+                else leftovers.push(item);
+            }
+            for (const item of leftovers) {
+                const slotIdx = result.findIndex(r => !r);
+                if (slotIdx < 0) break;
+                result[slotIdx] = item;
+            }
+            return result;
+        }
+
+        async function entryToAudioUrl(entry, name) {
+            const raw = await entry.async("blob");
+            const ext = name.toLowerCase().split(".").pop();
+            const mime = ext === "mp3" ? "audio/mpeg" : (ext === "m4a" ? "audio/mp4" : `audio/${ext}`);
+            return URL.createObjectURL(new Blob([raw], { type: mime }));
+        }
+
+        function showImportSummary(lines) {
+            const container = document.getElementById("game-container");
+            const old = document.getElementById("popup-root");
+            if (old) old.remove();
+            const root = document.createElement("div");
+            root.id = "popup-root";
+            const body = lines.map(l => `<div style="text-align:left;font-size:12px;line-height:1.5;">${l}</div>`).join("");
+            root.innerHTML = `
+                <div class="popup-box" style="max-width:92%;max-height:80%;overflow-y:auto;">
+                    <p style="font-weight:bold;margin-bottom:8px;">Importação concluída</p>
+                    ${body}
+                    <div class="popup-buttons"><button class="popup-btn" id="import-summary-ok">OK</button></div>
+                </div>`;
+            container.appendChild(root);
+            document.getElementById("import-summary-ok").onclick = () => root.remove();
+        }
+
+        window.handleZipSelected = async function(event) {
+            const input = event.target;
+            const file = input.files && input.files[0];
+            input.value = "";
+            if (!file) return;
+
+            if (typeof JSZip === "undefined") {
+                showToast("JSZip não carregou. Verifique a internet!");
+                return;
+            }
+
+            try {
+                showToast("Lendo arquivo ZIP...");
+                const zip = await JSZip.loadAsync(file);
+                const scan = scanZip(zip);
+                const mode = zipTargetMode;
+                const report = [];
+
+                const doChars = mode === "all" || mode === "character";
+                const doScenes = mode === "all" || mode === "scenes";
+                const doCgs = mode === "all" || mode === "cgs";
+                const doMusic = mode === "all" || mode === "music";
+                const doSfx = mode === "all" || mode === "sfx";
+
+                if (doChars) {
+                    for (let cIdx = 0; cIdx < devAssets.characters.length; cIdx++) {
+                        if (mode === "character" && cIdx !== targetCIdx) continue;
+                        let items = scan.characters[cIdx];
+                        if (mode === "character" && items.length === 0) {
+                            items = scan.otherImages.length ? scan.otherImages
+                                : scan.characters.flat().length === 0 ? scan.scenes : [];
+                        }
+                        if (items.length === 0) continue;
+                        const poses = [];
+                        for (const it of items) {
+                            poses.push({ name: cleanPoseName(it.name, "Pose"), img: await entryToDataUrl(it.entry, it.name) });
+                        }
+                        devAssets.characters[cIdx].sprites = poses;
+                        report.push(`🧍 <b>${devAssets.characters[cIdx].name}</b>: ${poses.length} poses`);
+                    }
+                }
+
+                if (doScenes) {
+                    let items = scan.scenes;
+                    if (mode === "scenes" && items.length === 0) items = scan.otherImages;
+                    if (items.length > 0) {
+                        const assigned = assignScenes(items, devAssets.scenes);
+                        for (let i = 0; i < assigned.length; i++) {
+                            if (!assigned[i]) continue;
+                            devAssets.scenes[i].image = await entryToDataUrl(assigned[i].entry, assigned[i].name);
+                            report.push(`🖼 [${devAssets.scenes[i].id}] ${devAssets.scenes[i].name} ← ${assigned[i].name}`);
+                        }
+                    }
+                }
+
+                if (doCgs) {
+                    let items = scan.cgs;
+                    if (mode === "cgs" && items.length === 0) items = scan.otherImages;
+                    if (items.length > 0) {
+                        const assigned = assignCgs(items, devAssets.cgs);
+                        for (let i = 0; i < assigned.length; i++) {
+                            if (!assigned[i]) continue;
+                            devAssets.cgs[i].image = await entryToDataUrl(assigned[i].entry, assigned[i].name);
+                            report.push(`🎬 ${devAssets.cgs[i].name} ← ${assigned[i].name}`);
+                        }
+                    }
+                }
+
+                if (mode === "all" && scan.ui.length > 0) {
+                    devAssets.ui[0].image = await entryToDataUrl(scan.ui[0].entry, scan.ui[0].name);
+                    report.push(`📱 ${devAssets.ui[0].name} ← ${scan.ui[0].name}`);
+                }
+
+                if (doMusic) {
+                    let items = scan.music;
+                    if (mode === "music" && items.length === 0) items = scan.otherAudio;
+                    if (mode === "all" && items.length === 0) items = scan.otherAudio;
+                    if (items.length > 0) {
+                        const assigned = assignAudio(items, devAssets.music, MUSIC_RULES);
+                        for (let i = 0; i < assigned.length; i++) {
+                            if (!assigned[i]) continue;
+                            devAssets.music[i].url = await entryToAudioUrl(assigned[i].entry, assigned[i].name);
+                            report.push(`🎵 ${devAssets.music[i].name} ← ${assigned[i].name}`);
+                        }
+                    }
+                }
+
+                if (doSfx) {
+                    let items = scan.sfx;
+                    if (mode === "sfx" && items.length === 0) items = scan.otherAudio;
+                    if (items.length > 0) {
+                        const assigned = assignAudio(items, devAssets.sfx, SFX_RULES);
+                        for (let i = 0; i < assigned.length; i++) {
+                            if (!assigned[i]) continue;
+                            devAssets.sfx[i].url = await entryToAudioUrl(assigned[i].entry, assigned[i].name);
+                            report.push(`🔔 ${devAssets.sfx[i].name} ← ${assigned[i].name}`);
+                        }
+                    }
+                }
+
+                zipTargetMode = null;
+
+                if (report.length === 0) {
+                    showToast("Nenhum arquivo compatível encontrado no ZIP!");
+                } else {
+                    showImportSummary(report);
+                }
+
+                renderDevModal();
+                if (gameState.inGame) renderGamePlay();
+                else playSoundtrack("menu");
+
+            } catch (err) {
+                console.error(err);
+                showToast("Erro ao processar o arquivo ZIP!");
+            }
+        };
+
+        window.handleImageSelected = function(event) {
+            const input = event.target;
+            const file = input.files && input.files[0];
+            input.value = "";
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const imgDataUrl = e.target.result;
+
+                if (uploadTargetType === 'sprite') {
+                    const sp = devAssets.characters[targetCIdx].sprites[targetSIdx];
+                    if (sp) {
+                        sp.img = imgDataUrl;
+                    } else {
+                        devAssets.characters[targetCIdx].sprites.push({ name: `Pose ${targetSIdx}`, img: imgDataUrl });
+                    }
+                    showToast("Sprite atualizado!");
+                    renderDevModal();
+                    if (gameState.inGame) renderGamePlay();
+                } else if (uploadTargetType === 'scene') {
+                    devAssets.scenes[targetSceneIdx].image = imgDataUrl;
+                    showToast("Cenário atualizado!");
+                    renderDevModal();
+                    if (gameState.inGame) renderGamePlay();
+                } else if (uploadTargetType === 'ui') {
+                    devAssets.ui[targetUiIdx].image = imgDataUrl;
+                    showToast("Imagem do telefone atualizada!");
+                    renderDevModal();
+                    if (gameState.inGame) renderGamePlay();
+                } else if (uploadTargetType === 'cg') {
+                    devAssets.cgs[targetCgIdx].image = imgDataUrl;
+                    showToast("CG atualizado!");
+                    renderDevModal();
+                    if (gameState.inGame) renderGamePlay();
+                }
+                uploadTargetType = null;
+            };
+            reader.readAsDataURL(file);
+        };
+
+        window.handleMusicSelected = function(event) {
+            const input = event.target;
+            const file = input.files && input.files[0];
+            input.value = "";
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                if (targetMusicIdx !== null && devAssets.music[targetMusicIdx]) {
+                    devAssets.music[targetMusicIdx].url = e.target.result;
+                    showToast(`Trilha "${devAssets.music[targetMusicIdx].name}" atualizada!`);
+                }
+                targetMusicIdx = null;
+                renderDevModal();
+            };
+            reader.readAsDataURL(file);
+        };
+
+        window.handleSfxSelected = function(event) {
+            const input = event.target;
+            const file = input.files && input.files[0];
+            input.value = "";
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                if (targetSfxIdx !== null && devAssets.sfx[targetSfxIdx]) {
+                    devAssets.sfx[targetSfxIdx].url = e.target.result;
+                    showToast(`Efeito sonoro "${devAssets.sfx[targetSfxIdx].name}" atualizado!`);
+                    playSfx(devAssets.sfx[targetSfxIdx].id);
+                }
+                targetSfxIdx = null;
+                renderDevModal();
+            };
+            reader.readAsDataURL(file);
+        };
+
+        function openSaveModal(mode) {
+            playSfx("click");
+            stopAutoPlay();
+            const container = document.getElementById("game-container");
+            const existingModal = document.getElementById("save-modal-root");
+            if (existingModal) existingModal.remove();
+
+            const modalWrapper = document.createElement("div");
+            modalWrapper.className = "modal-screen";
+            modalWrapper.id = "save-modal-root";
+
+            const titleText = mode === 'save' ? "Selecionar ficheiro para guardar" : "Selecionar ficheiro para carregar";
+
+            modalWrapper.innerHTML = `
+                <h2>${titleText}</h2>
+                <div class="save-slots-list" id="slots-container"></div>
+                <div id="new-slot-container"></div>
+                <button class="close-modal-btn" id="close-modal-dom">Voltar</button>
+            `;
+            container.appendChild(modalWrapper);
+
+            document.getElementById("close-modal-dom").onclick = () => {
+                playSfx("click");
+                modalWrapper.remove();
+            };
+            populateSlots(mode);
+        }
+
+        function populateSlots(mode) {
+            const slotsContainer = document.getElementById("slots-container");
+            const newSlotContainer = document.getElementById("new-slot-container");
+            if (!slotsContainer || !newSlotContainer) return;
+            slotsContainer.innerHTML = "";
+            newSlotContainer.innerHTML = "";
+
+            let maxSaves = 0;
+            for (let i = 1; i <= 100; i++) {
+                if (safeStorage.getItem(`vn_slot_${i}`)) maxSaves = i;
+            }
+
+            for (let i = 1; i <= maxSaves; i++) {
+                const raw = safeStorage.getItem(`vn_slot_${i}`);
+                const data = raw ? JSON.parse(raw) : null;
+                slotsContainer.appendChild(createSlotCard(`File ${i}`, data, i, mode));
+            }
+
+            if (mode === 'save') {
+                const nextSlotId = maxSaves + 1;
+                const newBtn = document.createElement("div");
+                newBtn.className = "new-slot-btn";
+                newBtn.innerText = `+ Criar Novo File ${nextSlotId}`;
+                newBtn.onclick = () => {
+                    playSfx("click");
+                    executeSave(nextSlotId).then(() => populateSlots(mode));
+                };
+                newSlotContainer.appendChild(newBtn);
+            } else if (maxSaves === 0) {
+                slotsContainer.innerHTML = `<p style="color: #888; text-align: center; margin-top: 20px; font-size: 14px;">Nenhum save encontrado.</p>`;
+            }
+        }
+
+        function createSlotCard(label, data, slotIndex, mode) {
+            const card = document.createElement("div");
+            card.className = "save-slot-card";
+            let clickTimer = 0;
+
+            if (data) {
+                const thumb = data.shot
+                    ? `<img class="slot-thumb" src="${data.shot}" alt="Screenshot do save">`
+                    : `<div class="slot-thumb-empty">sem<br>imagem</div>`;
+                card.innerHTML = `
+                    <div style="display:flex; align-items:center; gap:12px; width:100%;">
+                        ${thumb}
+                        <div class="slot-details" style="flex:1; min-width:0;">
+                            <div class="slot-header">
+                                <span>${label}${data.day ? " · Dia " + data.day : ""}</span>
+                                <span>${data.date || ""}</span>
+                            </div>
+                            <div class="slot-title">${data.speaker}</div>
+                            <div class="slot-subtitle" style="max-width:100%;">"${data.text}"</div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                card.innerHTML = `
+                    <div class="slot-details">
+                        <div class="slot-header"><span>${label}</span></div>
+                        <div class="slot-title" style="color: #666;">Vazio</div>
+                    </div>
+                `;
+            }
+
+            card.onclick = () => {
+                playSfx("click");
+                const now = new Date().getTime();
+                if (clickTimer && (now - clickTimer < 350)) {
+                    if (data) showActionPopup(slotIndex, mode, () => populateSlots(mode));
+                    clickTimer = 0;
+                } else {
+                    clickTimer = now;
+                    setTimeout(() => {
+                        if (clickTimer === now) {
+                            if (mode === 'save') {
+                                if (data) showActionPopup(slotIndex, mode, () => populateSlots(mode));
+                                else { executeSave(slotIndex).then(() => populateSlots(mode)); }
+                            } else {
+                                if (data) {
+                                    document.getElementById("save-modal-root")?.remove();
+                                    executeLoad(`vn_slot_${slotIndex}`);
+                                } else {
+                                    showToast("Esta pasta está vazia!");
+                                }
+                            }
+                        }
+                    }, 350);
+                }
+            };
+            return card;
+        }
+
+        function showActionPopup(slotIndex, mode, callback) {
+            playSfx("click");
+            const container = document.getElementById("game-container");
+            const popupRoot = document.createElement("div");
+            popupRoot.id = "popup-root";
+
+            popupRoot.innerHTML = `
+                <div class="popup-box">
+                    <p>Gerir File ${slotIndex}</p>
+                    <div class="popup-buttons">
+                        ${mode === 'save' ? `<button class="popup-btn overwrite" id="pop-over">Sobrescrever</button>` : ''}
+                        <button class="popup-btn delete" id="pop-del">Excluir</button>
+                        <button class="popup-btn cancel" id="pop-can">Cancelar</button>
+                    </div>
+                </div>
+            `;
+            container.appendChild(popupRoot);
+
+            if (mode === 'save') {
+                document.getElementById("pop-over").onclick = () => {
+                    playSfx("click");
+                    executeSave(slotIndex).then(() => {
+                        popupRoot.remove();
+                        if (callback) callback();
+                    });
+                };
+            }
+            document.getElementById("pop-del").onclick = () => {
+                playSfx("click");
+                safeStorage.removeItem(`vn_slot_${slotIndex}`);
+                showToast(`File ${slotIndex} excluído!`);
+                popupRoot.remove();
+                if (callback) callback();
+            };
+            document.getElementById("pop-can").onclick = () => {
+                playSfx("click");
+                popupRoot.remove();
+            };
+        }
+
+        function toggleSkip() {
+            playSfx("click");
+            gameState.skipActive = !gameState.skipActive;
+            const btn = document.getElementById("skip-btn");
+            if (btn) btn.classList.toggle("active", gameState.skipActive);
+            if (gameState.skipActive) advanceDialogue();
+        }
+
+        function toggleAuto() {
+            playSfx("click");
+            gameState.autoActive = !gameState.autoActive;
+            const btn = document.getElementById("auto-btn");
+            if (btn) btn.classList.toggle("active", gameState.autoActive);
+            if (gameState.autoActive) startAutoPlay();
+            else stopAutoPlay();
+        }
+
+        function startAutoPlay() {
+            if (gameState.autoTimer) clearInterval(gameState.autoTimer);
+            gameState.autoTimer = setInterval(() => {
+                if (gameState.autoActive && gameState.currentIndex < script.length - 1 && script[gameState.currentIndex].speaker !== "Escolha" && !script[gameState.currentIndex].isEnd) {
+                    advanceDialogue();
+                } else {
+                    stopAutoPlay();
+                }
+            }, 2500);
+        }
+
+        function stopAutoPlay() {
+            gameState.autoActive = false;
+            const btn = document.getElementById("auto-btn");
+            if (btn) btn.classList.remove("active");
+            if (gameState.autoTimer) clearInterval(gameState.autoTimer);
+        }
+
+        const SCENE_GRADIENTS = {
+            "01a": ["#322346", "#1a1329"], "01b": ["#100d1c", "#05040a"],
+            "02a": ["#1a442d", "#0c2117"], "02b": ["#0b1f15", "#040a08"],
+            "03a": ["#442a15", "#21130a"], "03b": ["#1f1208", "#0a0502"]
+        };
+        const CG_GRADIENTS = { 1: ["#5b2a6b", "#0a0618"], 2: ["#22406b", "#060a18"], 3: ["#6b4a1f", "#180e06"], 4: ["#1f6b52", "#06180f"] };
+
+        function loadImageForCapture(src) {
+            return new Promise(resolve => {
+                if (!src) return resolve(null);
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = () => resolve(null);
+                img.src = src;
+            });
+        }
+
+        function drawCover(ctx, img, w, h) {
+            const k = Math.max(w / img.naturalWidth, h / img.naturalHeight);
+            const dw = img.naturalWidth * k, dh = img.naturalHeight * k;
+            ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
+        }
+
+        function roundRectPath(ctx, x, y, w, h, r) {
+            r = Math.min(r, w / 2, h / 2);
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.arcTo(x + w, y, x + w, y + h, r);
+            ctx.arcTo(x + w, y + h, x, y + h, r);
+            ctx.arcTo(x, y + h, x, y, r);
+            ctx.arcTo(x, y, x + w, y, r);
+            ctx.closePath();
+        }
+
+        function wrapCanvasText(ctx, text, x, y, maxW, lineH, maxLines) {
+            const words = String(text).split(/\s+/);
+            let line = "", lines = [];
+            for (const w of words) {
+                const test = line ? line + " " + w : w;
+                if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = w; }
+                else line = test;
+            }
+            if (line) lines.push(line);
+            lines.slice(0, maxLines).forEach((l, i) => ctx.fillText(l, x, y + i * lineH));
+        }
+
+        async function captureScreenshot() {
+            try {
+                const container = document.getElementById("game-container");
+                const cr = container.getBoundingClientRect();
+                if (!cr.width || !cr.height) return null;
+                const outW = 240, k = outW / cr.width;
+                const canvas = document.createElement("canvas");
+                canvas.width = outW;
+                canvas.height = Math.round(cr.height * k);
+                const ctx = canvas.getContext("2d");
+                ctx.scale(k, k);
+                const W = cr.width, H = cr.height;
+                const item = script[gameState.currentIndex];
+
+                const scene = devAssets.scenes.find(sc => sc.id === item.scene);
+                const sceneImg = scene ? await loadImageForCapture(scene.image) : null;
+                if (sceneImg) {
+                    drawCover(ctx, sceneImg, W, H);
+                } else {
+                    const [c1, c2] = SCENE_GRADIENTS[item.scene] || ["#1f1a3a", "#05050a"];
+                    const g = ctx.createLinearGradient(0, 0, W, H);
+                    g.addColorStop(0, c1); g.addColorStop(1, c2);
+                    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+                }
+
+                if (item.cg) {
+                    const cg = devAssets.cgs.find(c => c.id === `cg${item.cg}`);
+                    const cgImg = cg ? await loadImageForCapture(cg.image) : null;
+                    if (cgImg) {
+                        drawCover(ctx, cgImg, W, H);
+                    } else {
+                        const [c1, c2] = CG_GRADIENTS[item.cg] || ["#333", "#000"];
+                        const g = ctx.createLinearGradient(0, 0, W * 0.4, H);
+                        g.addColorStop(0, c1); g.addColorStop(1, c2);
+                        ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+                        ctx.fillStyle = "#fff"; ctx.textAlign = "center";
+                        ctx.font = "bold 40px 'Segoe UI', sans-serif";
+                        ctx.fillText(`CG ${item.cg}`, W / 2, H * 0.4);
+                        ctx.textAlign = "left";
+                    }
+                } else {
+                    const spriteBox = document.getElementById("character-sprite");
+                    if (spriteBox && getComputedStyle(spriteBox).display !== "none") {
+                        const spImg = spriteBox.querySelector("img");
+                        if (spImg) {
+                            const r = spImg.getBoundingClientRect();
+                            const loaded = await loadImageForCapture(spImg.src);
+                            if (loaded) ctx.drawImage(loaded, r.left - cr.left, r.top - cr.top, r.width, r.height);
+                        } else {
+                            const ph = spriteBox.firstElementChild;
+                            if (ph) {
+                                const r = ph.getBoundingClientRect();
+                                ctx.fillStyle = "#8a2be2";
+                                roundRectPath(ctx, r.left - cr.left, r.top - cr.top, r.width, r.height, 10); ctx.fill();
+                                ctx.setLineDash([6, 4]); ctx.strokeStyle = "#ff2a85"; ctx.lineWidth = 3; ctx.stroke(); ctx.setLineDash([]);
+                            }
+                        }
+                    }
+                }
+
+                const choicesBox = document.getElementById("choices-container");
+                if (choicesBox && getComputedStyle(choicesBox).display !== "none") {
+                    ctx.font = "bold 15px 'Segoe UI', sans-serif";
+                    ctx.textAlign = "center";
+                    choicesBox.querySelectorAll(".choice-btn").forEach(btn => {
+                        const r = btn.getBoundingClientRect();
+                        const x = r.left - cr.left, y = r.top - cr.top;
+                        ctx.fillStyle = "rgba(20,20,35,0.96)";
+                        roundRectPath(ctx, x, y, r.width, r.height, 8); ctx.fill();
+                        ctx.strokeStyle = "#00f0ff"; ctx.lineWidth = 2; ctx.stroke();
+                        ctx.fillStyle = "#fff";
+                        ctx.fillText(btn.innerText, x + r.width / 2, y + r.height / 2 + 5, r.width - 16);
+                    });
+                    ctx.textAlign = "left";
+                }
+
+                const dlg = document.getElementById("dialogue-box");
+                if (dlg && getComputedStyle(dlg).display !== "none") {
+                    const r = dlg.getBoundingClientRect();
+                    const x = r.left - cr.left, y = r.top - cr.top;
+                    ctx.fillStyle = "rgba(15,15,25,0.92)";
+                    roundRectPath(ctx, x, y, r.width, r.height, 12); ctx.fill();
+                    ctx.strokeStyle = "#ff2a85"; ctx.lineWidth = 2; ctx.stroke();
+
+                    const nameEl = document.getElementById("speaker-name");
+                    const txtEl = document.getElementById("dialogue-text");
+                    const nr = nameEl.getBoundingClientRect(), tr = txtEl.getBoundingClientRect();
+                    ctx.textAlign = "left";
+                    ctx.fillStyle = "#ff2a85";
+                    ctx.font = "bold 14px 'Segoe UI', sans-serif";
+                    ctx.fillText(nameEl.innerText.toUpperCase(), nr.left - cr.left, nr.top - cr.top + 14);
+                    ctx.fillStyle = "#f0f0f0";
+                    ctx.font = "14px 'Segoe UI', sans-serif";
+                    wrapCanvasText(ctx, txtEl.innerText, tr.left - cr.left, tr.top - cr.top + 14, tr.width, 19, 3);
+                }
+
+                if (gameState.day > 0) {
+                    ctx.fillStyle = "rgba(15,15,25,0.85)";
+                    roundRectPath(ctx, 15, 15, 62, 26, 6); ctx.fill();
+                    ctx.strokeStyle = "#ff2a85"; ctx.lineWidth = 1; ctx.stroke();
+                    ctx.fillStyle = "#ff2a85"; ctx.font = "bold 12px 'Segoe UI', sans-serif";
+                    ctx.fillText(`Dia ${gameState.day}`, 25, 33);
+                }
+
+                return canvas.toDataURL("image/jpeg", 0.72);
+            } catch (err) {
+                console.error("Falha ao capturar screenshot:", err);
+                return null;
+            }
+        }
+
+        async function executeSave(slotIndex) {
+            const currentItem = script[gameState.currentIndex];
+            const shot = await captureScreenshot();
+            const saveData = {
+                index: gameState.currentIndex,
+                speaker: currentItem.speaker,
+                text: formatText(currentItem.text),
+                day: gameState.day,
+                player: { name: playerData.name, pronoun: playerData.pronoun },
+                shot: shot,
+                date: new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+            };
+            let ok = safeStorage.setItem(`vn_slot_${slotIndex}`, JSON.stringify(saveData));
+            if (!ok && saveData.shot) {
+                delete saveData.shot;
+                ok = safeStorage.setItem(`vn_slot_${slotIndex}`, JSON.stringify(saveData));
+            }
+            showToast(ok ? `Jogo guardado em File ${slotIndex}!` : "Falha ao guardar: armazenamento cheio!");
+        }
+
+        function executeLoad(storageKey) {
+            let keyToLoad = storageKey;
+            if (storageKey === 'vn_slot_last') {
+                for (let i = 100; i >= 1; i--) {
+                    if (safeStorage.getItem(`vn_slot_${i}`)) {
+                        keyToLoad = `vn_slot_${i}`;
+                        break;
+                    }
+                }
+            }
+
+            const raw = safeStorage.getItem(keyToLoad);
+            const savedData = raw ? JSON.parse(raw) : null;
+            if (savedData) {
+                document.getElementById("main-menu").style.display = "none";
+                document.getElementById("setup-modal").style.display = "none";
+                document.getElementById("background-layer").style.display = "flex";
+                document.getElementById("background-layer").style.opacity = "1";
+                document.getElementById("top-menu").style.display = "flex";
+                document.getElementById("character-sprite").style.display = "flex";
+                document.getElementById("dialogue-box").style.display = "block";
+                gameState.inGame = true;
+                gameState.currentIndex = savedData.index;
+                if (savedData.player) {
+                    playerData.name = savedData.player.name || playerData.name;
+                    playerData.pronoun = savedData.player.pronoun || playerData.pronoun;
+                }
+                gameState.day = savedData.day || 1;
+                gameState.shownDay = gameState.day;
+                renderGamePlay();
+                showToast("Build carregada com sucesso!");
+            }
+        }
+
+        function advanceDialogue() {
+            if (gameState.dayCardActive) return;
+            
+            if (completeTypewriter()) {
+                return;
+            }
+
+            playSfx("click");
+            if (script[gameState.currentIndex].speaker === "Escolha") return;
+            if (gameState.currentIndex < script.length - 1) {
+                gameState.currentIndex++;
+                renderGamePlay();
+            }
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById("toast");
+            if (!toast) return;
+            toast.innerText = message;
+            toast.style.opacity = "1";
+            setTimeout(() => { toast.style.opacity = "0"; }, Math.max(2000, message.length * 70));
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            document.getElementById("btn-play").onclick = promptSetupAndStart;
+            document.getElementById("btn-start-game").onclick = startGame;
+            document.getElementById("btn-load").onclick = () => openSaveModal('load');
+            document.getElementById("btn-config").onclick = renderConfigModal;
+
+            document.getElementById("top-save-btn").onclick = (e) => { e.stopPropagation(); openSaveModal('save'); };
+            document.getElementById("top-options-btn").onclick = (e) => { e.stopPropagation(); renderConfigModal(); };
+            document.getElementById("skip-btn").onclick = (e) => { e.stopPropagation(); toggleSkip(); };
+            document.getElementById("auto-btn").onclick = (e) => { e.stopPropagation(); toggleAuto(); };
+            document.getElementById("dialogue-box").onclick = advanceDialogue;
+            document.getElementById("day-card").onclick = hideDayCard;
+            
+            playSoundtrack("menu");
+        });
+    </script>
+</body>
+</html>
